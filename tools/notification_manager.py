@@ -31,33 +31,11 @@ class NotificationManager:
             return False
             
     @staticmethod
-    async def send_submission_notification(user, submission_type, embed):
-        """
-        Отправляет пользователю уведомление о создании заявки (жалобы или предложения)
-        
-        Args:
-            user: Пользователь, отправивший заявку
-            submission_type: Тип заявки ('жалоба' или 'предложение')
-            embed: Эмбед с информацией о заявке
-            
-        Returns:
-            bool: True если сообщение отправлено успешно, False в случае ошибки
-        """
-        content = f"Ваша заявка ({submission_type}) отправлена на рассмотрение:"
-        return await NotificationManager.send_dm_notification(user, content=content, embed=embed)
+    async def send_submission_notification(user, embed):
+        """Отправляет пользователю уведомление о создании заявки (жалобы или предложения)"""
+        return await NotificationManager.send_dm_notification(user, embed=embed)
     
     @staticmethod
-    async def send_decision_notification(user, submission_type, decision, embed):
-        """
-        Отправляет пользователю уведомление о решении по заявке
-        
-        Args:
-            user: Пользователь, отправивший заявку
-            submission_type: Тип заявки ('жалоба' или 'предложение')
-            decision: Решение ('одобрена' или 'отклонена')
-            embed: Эмбед с информацией о решении
-            
-        Returns:
-            bool: True если сообщение отправлено успешно, False в случае ошибки
-        """
+    async def send_decision_notification(user, embed):
+        """Отправляет пользователю уведомление о решении по заявке"""
         return await NotificationManager.send_dm_notification(user, embed=embed) 

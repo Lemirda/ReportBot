@@ -2,7 +2,6 @@ import os
 import uuid
 import discord
 import datetime
-import asyncio
 
 from dotenv import load_dotenv
 
@@ -15,6 +14,8 @@ load_dotenv()
 
 logger = Logger.get_instance()
 db_manager = DatabaseManager.get_instance()
+
+REPORT_LOG_CHANNEL=int(os.getenv('REPORT_LOG_CHANNEL'))
 
 def create_reaction_buttons():
     """
@@ -120,13 +121,11 @@ class RejectionModal(discord.ui.Modal, title="Отклонение заявки"
             action="отклонена",
             message=self.message,
             reason=self.reason.value,
-            author=interaction.user
+            author=interaction.user,
+            log_channel_id=REPORT_LOG_CHANNEL
         )
 
-        await interaction.response.send_message(
-            f"Вы отклонили {content_type} от {self.user.mention} по причине: {self.reason.value}. Канал будет удален через 10 секунд.", 
-            ephemeral=True
-        )
+        await interaction.response.defer()
 
         # Создаем эмбед для отправки пользователю
         embed = discord.Embed(
@@ -148,30 +147,8 @@ class RejectionModal(discord.ui.Modal, title="Отклонение заявки"
         # Отправляем уведомление пользователю
         await NotificationManager.send_decision_notification(
             self.user, 
-            content_type, 
-            "отклонена", 
             embed
         )
-
-        # Обновляем сообщение, чтобы отключить кнопки
-        for item in self.message.components:
-            for child in item.children:
-                child.disabled = True
-
-        embed = self.message.embeds[0]
-
-        for i, field in enumerate(embed.fields):
-            if field.name == "Статус":
-                embed.set_field_at(i, name="Статус", value="Отклонена", inline=False)
-                break
-        else:
-            embed.add_field(name="Статус", value="Отклонена", inline=False)
-
-        embed.add_field(name="Причина отклонения", value=self.reason.value, inline=False)
-
-        await self.message.edit(embed=embed, view=None)
-
-        await asyncio.sleep(10)
 
         try:
             await channel.delete(reason=f"{content_type.capitalize()} отклонена модератором {interaction.user.name}")
@@ -255,25 +232,27 @@ async def handle_reaction_button(bot, interaction):
 
 async def handle_approve(bot, interaction, message, user):
     """
-    Обработка нажатия кнопки одобрения
+    Обработка нажатия на кнопку одобрения
 
     Args:
         bot: Экземпляр бота
         interaction: Объект взаимодействия
         message: Сообщение с кнопками
-        user: Пользователь, создавший заявку
+        user: Пользователь, отправивший заявку
     """
     channel = message.channel
     content_type = "жалоба" if "жалоба" in channel.name else "предложение"
 
     current_date = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
 
+    # Логируем действие в базу данных
     db_manager.log_reaction_action(
         message.id,
         channel.id,
         user.id,
         interaction.user.id,
-        "approve"
+        "approve",
+        None  # Нет причины для одобрения
     )
 
     # Отправляем сообщение в лог-канал
@@ -283,10 +262,12 @@ async def handle_approve(bot, interaction, message, user):
         content_type=content_type,
         action="одобрена",
         message=message,
-        author=interaction.user
+        reason=None,
+        author=interaction.user,
+        log_channel_id=REPORT_LOG_CHANNEL
     )
 
-    await interaction.response.send_message(f"Вы одобрили {content_type} от {user.mention}. Канал будет удален через 10 секунд.", ephemeral=True)
+    await interaction.response.defer()
 
     # Создаем эмбед для отправки пользователю
     embed = discord.Embed(
@@ -298,8 +279,7 @@ async def handle_approve(bot, interaction, message, user):
     if message.embeds:
         original_embed = message.embeds[0]
         for field in original_embed.fields:
-            # Не дублируем поле "От кого" и поля статуса
-            if field.name not in ["От кого", "Статус", "Причина отклонения"]:
+            if field.name not in ["От кого", "Статус"]:
                 embed.add_field(name=field.name, value=field.value, inline=field.inline)
 
     embed.set_footer(text=f"{current_date}")
@@ -307,28 +287,8 @@ async def handle_approve(bot, interaction, message, user):
     # Отправляем уведомление пользователю
     await NotificationManager.send_decision_notification(
         user, 
-        content_type, 
-        "одобрена", 
         embed
     )
-
-    for item in message.components:
-        for child in item.children:
-            child.disabled = True
-
-    embed = message.embeds[0]
-    # Обновляем статус в эмбеде
-    for i, field in enumerate(embed.fields):
-        if field.name == "Статус":
-            embed.set_field_at(i, name="Статус", value="Одобрена", inline=False)
-            break
-    else:
-        # Если поле статуса не найдено, добавляем его
-        embed.add_field(name="Статус", value="Одобрена", inline=False)
-
-    await message.edit(embed=embed, view=None)
-
-    await asyncio.sleep(10)
 
     try:
         await channel.delete(reason=f"{content_type.capitalize()} одобрена модератором {interaction.user.name}")
@@ -343,15 +303,14 @@ async def handle_approve(bot, interaction, message, user):
 
 async def handle_reject(bot, interaction, message, user):
     """
-    Обработка нажатия кнопки отклонения
+    Обработка нажатия на кнопку отклонения
 
     Args:
         bot: Экземпляр бота
         interaction: Объект взаимодействия
         message: Сообщение с кнопками
-        user: Пользователь, создавший заявку
+        user: Пользователь, отправивший заявку
     """
-    # Отправляем модальное окно для ввода причины отклонения
-    await interaction.response.send_modal(
-        RejectionModal(bot, message, user)
-    )
+    # Показываем модальное окно для ввода причины отклонения
+    modal = RejectionModal(bot, message, user)
+    await interaction.response.send_modal(modal) 

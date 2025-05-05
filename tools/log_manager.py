@@ -1,18 +1,17 @@
-import os
 import discord
+
 from dotenv import load_dotenv
 from tools.logger import Logger
 
 load_dotenv()
 
 logger = Logger.get_instance()
-LOG_CHANNEL_ID = int(os.getenv('LOG_CHANNEL', 0))
 
 class LogManager:
     """Менеджер для отправки сообщений в лог-канал"""
 
     @staticmethod
-    async def send_log_message(bot, user, content_type, action, message=None, reason=None, author=None):
+    async def send_log_message(bot, user, content_type, action, message=None, reason=None, author=None, log_channel_id=None):
         """
         Отправка сообщения в лог-канал
 
@@ -24,14 +23,12 @@ class LogManager:
             message: Сообщение с эмбедом заявки
             reason: Причина отклонения (опционально)
             author: Модератор, совершивший действие
+            log_channel_id: ID лог-канала
         """
-        if LOG_CHANNEL_ID == 0:
-            logger.warning("ID лог-канала не указан в .env файле")
-            return
 
-        channel = bot.get_channel(LOG_CHANNEL_ID)
+        channel = bot.get_channel(log_channel_id)
         if not channel:
-            logger.warning(f"Лог-канал с ID {LOG_CHANNEL_ID} не найден")
+            logger.warning(f"Лог-канал с ID {log_channel_id} не найден")
             return
 
         # Определяем цвет в зависимости от действия

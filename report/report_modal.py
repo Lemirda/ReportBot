@@ -46,32 +46,24 @@ class ReportModal(discord.ui.Modal, title="Отправка жалобы"):
             logger.info(f"Получена новая жалоба от {interaction.user.name} ({interaction.user.id})")
 
             channel_manager = ChannelManager(interaction.guild)
-            channel = await channel_manager.create_report_channel(interaction.user, report_data)
+            
+            # Создаем embed для канала
+            channel_embed = discord.Embed(title="Жалоба", color=discord.Color.red())
+            channel_embed.add_field(name="От кого", value=interaction.user.mention, inline=False)
+            channel_embed.add_field(name="На кого", value=self.target.value, inline=False)
+            channel_embed.add_field(name="Описание", value=self.description.value, inline=False)
+            channel_embed.add_field(name="Доказательства", value=self.evidence.value, inline=False)
+            
+            channel = await channel_manager.create_report_channel(interaction.user, report_data, channel_embed)
 
             if channel:
                 await interaction.response.defer()
 
-                # Создаем эмбед с информацией о жалобе
-                embed = discord.Embed(title="Жалоба", color=discord.Color.red())
-                embed.add_field(name="На кого", value=self.target.value, inline=False)
-                embed.add_field(name="Описание", value=self.description.value, inline=False)
-                embed.add_field(name="Доказательства", value=self.evidence.value, inline=False)
-                embed.add_field(name="Статус", value="Ожидает рассмотрения", inline=False)
-                embed.set_footer(text="Вы получите уведомление, когда жалоба будет рассмотрена")
-
-                # Отправляем уведомление в ЛС
-                notification_sent = await NotificationManager.send_submission_notification(
+                await NotificationManager.send_submission_notification(
                     interaction.user, 
-                    "жалоба", 
-                    embed
+                    channel_embed
                 )
 
-                # Если уведомление в ЛС не отправлено, отправляем во временном сообщении
-                if not notification_sent:
-                    await interaction.followup.send(
-                        "Ваша жалоба успешно отправлена! Модераторы рассмотрят её в ближайшее время.",
-                        ephemeral=True
-                    )
             else:
                 logger.error(f"Не удалось создать канал для жалобы от {interaction.user.name}")
 
@@ -83,16 +75,10 @@ class ReportModal(discord.ui.Modal, title="Отправка жалобы"):
         except Exception as e:
             logger.error(f"Ошибка при обработке жалобы от {interaction.user.name}: {e}", exc_info=True)
 
-            try:
-                await interaction.response.send_message(
-                    "Произошла ошибка при отправке жалобы. Пожалуйста, попробуйте позже.", 
-                    ephemeral=True
-                )
-            except:
-                await interaction.followup.send(
-                    "Произошла ошибка при отправке жалобы. Пожалуйста, попробуйте позже.",
-                    ephemeral=True
-                )
+            await interaction.response.send_message(
+                "Произошла ошибка при отправке жалобы. Пожалуйста, попробуйте позже.", 
+                ephemeral=True
+            )
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         """Обработка ошибок при отправке формы"""

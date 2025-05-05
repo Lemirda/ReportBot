@@ -4,7 +4,7 @@ import discord
 from dotenv import load_dotenv
 
 from tools.logger import Logger
-from tools.reaction_utils import ReactionView
+from tools.reaction_handlers import ReactionView
 from database.db_manager import DatabaseManager
 
 logger = Logger.get_instance()
@@ -18,13 +18,13 @@ class ChannelManager:
 
         load_dotenv()
 
-        self.reports_category_id = int(os.getenv('REPORTS_CATEGORY', 0))
-        self.suggestions_category_id = int(os.getenv('SUGGESTIONS_CATEGORY', 0))
+        self.reports_category_id = int(os.getenv('REPORTS_CATEGORY'))
+        self.suggestions_category_id = int(os.getenv('SUGGESTIONS_CATEGORY'))
 
         self.report_role_ids = [role_id.strip() for role_id in os.getenv('REPORT_PING_ROLES', '').split(',') if role_id.strip()]
         self.suggestion_role_ids = [role_id.strip() for role_id in os.getenv('SUGGESTION_PING_ROLES', '').split(',') if role_id.strip()]
 
-    def _get_role_mentions(self, role_ids):
+    def get_role_mentions(self, role_ids):
         """
         Получение упоминаний ролей по их ID
 
@@ -49,167 +49,119 @@ class ChannelManager:
                 logger.warning(f"Некорректный ID роли: {role_id}")
 
         return ' '.join(mentions)
+        
+    async def create_channel(self, channel_type: str, user: discord.User, data: dict, embed: discord.Embed):
+        """
+        Универсальный метод создания канала для жалоб или предложений
 
-    async def create_report_channel(self, user: discord.User, report_data: dict):
+        Args:
+            channel_type: Тип канала ('жалоба' или 'предложение')
+            user: Пользователь, отправивший запрос
+            data: Данные запроса (словарь с полями)
+            embed: Готовый embed для отправки
+
+        Returns:
+            Созданный канал или None, если не удалось создать
+        """
+        try:
+            if channel_type == "жалоба":
+                category_id = self.reports_category_id
+                role_ids = self.report_role_ids
+            elif channel_type == "предложение":
+                category_id = self.suggestions_category_id
+                role_ids = self.suggestion_role_ids
+            else:
+                logger.error(f"Неизвестный тип канала: {channel_type}")
+                return None
+                
+            category = self.guild.get_channel(category_id)
+
+            if not category:
+                logger.error(f"Категория для '{channel_type}' с ID {category_id} не найдена")
+                return None
+
+            channel_name = f"{channel_type}-{user.name.lower()}"
+            channel_name = ''.join(c for c in channel_name if c.isalnum() or c == '-')
+
+            if len(channel_name) > 100:
+                channel_name = channel_name[:90]
+
+            access_roles = []
+
+            for role_id in role_ids:
+                try:
+                    role = self.guild.get_role(int(role_id))
+
+                    if role:
+                        access_roles.append(role)
+                except ValueError:
+                    logger.warning(f"Некорректный ID роли: {role_id}")
+
+            # Создаем разрешения для канала
+            overwrites = {
+                self.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                self.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+            }
+
+            # Добавляем разрешения для ролей
+            for role in access_roles:
+                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+
+            channel = await self.guild.create_text_channel(
+                name=channel_name,
+                category=category,
+                overwrites=overwrites
+            )
+
+            logger.info(f"Создан канал для '{channel_type}': {channel.name} (ID: {channel.id})")
+
+            role_mentions = self.get_role_mentions(role_ids)
+
+            # Создаем представление с кнопками
+            reaction_view = ReactionView(None, user, channel_type)
+
+            # Отправляем сообщение с эмбедом и кнопками
+            message = await channel.send(content=role_mentions, embed=embed, view=reaction_view)
+            logger.info(f"Отправлено сообщение с '{channel_type}' в канал {channel.name}")
+
+            db_manager.add_reaction_buttons(
+                message.id,
+                channel.id,
+                channel_type,
+                reaction_view.approve_id,
+                reaction_view.reject_id
+            )
+
+            return channel
+
+        except Exception as e:
+            logger.error(f"Ошибка при создании канала для '{channel_type}' от {user.name}: {e}", exc_info=True)
+            return None
+
+    async def create_report_channel(self, user: discord.User, report_data: dict, embed: discord.Embed):
         """
         Создание канала для жалобы
 
         Args:
             user: Пользователь, отправивший жалобу
             report_data: Данные жалобы (словарь с полями)
+            embed: Готовый embed для отправки
 
         Returns:
             Созданный канал или None, если не удалось создать
         """
-        try:
-            category = self.guild.get_channel(self.reports_category_id)
+        return await self.create_channel("жалоба", user, report_data, embed)
 
-            if not category:
-                logger.error(f"Категория для жалоб с ID {self.reports_category_id} не найдена")
-                return None
-
-            channel_name = f"жалоба-{user.name.lower()}"
-            channel_name = ''.join(c for c in channel_name if c.isalnum() or c == '-')
-
-            if len(channel_name) > 100:
-                channel_name = channel_name[:90]
-
-            # Получаем роли, которые будут иметь доступ к каналу
-            access_roles = []
-
-            for role_id in self.report_role_ids:
-                try:
-                    role = self.guild.get_role(int(role_id))
-
-                    if role:
-                        access_roles.append(role)
-                except ValueError:
-                    logger.warning(f"Некорректный ID роли: {role_id}")
-
-            # Создаем разрешения для канала
-            overwrites = {
-                self.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-                self.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
-            }
-
-            # Добавляем разрешения для ролей
-            for role in access_roles:
-                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-
-            channel = await self.guild.create_text_channel(
-                name=channel_name,
-                category=category,
-                overwrites=overwrites
-            )
-
-            logger.info(f"Создан канал для жалобы: {channel.name} (ID: {channel.id})")
-
-            embed = discord.Embed(title="Жалоба", color=discord.Color.red())
-            embed.add_field(name="От кого", value=user.mention, inline=False)
-            embed.add_field(name="На кого", value=report_data.get('target', 'Не указано'), inline=False)
-            embed.add_field(name="Описание", value=report_data.get('description', 'Не указано'), inline=False)
-            embed.add_field(name="Доказательства", value=report_data.get('evidence', 'Не указано'), inline=False)
-
-            role_mentions = self._get_role_mentions(self.report_role_ids)
-
-            # Создаем представление с кнопками
-            reaction_view = ReactionView(None, user, "жалоба")
-
-            # Отправляем сообщение с эмбедом и кнопками
-            message = await channel.send(content=role_mentions, embed=embed, view=reaction_view)
-            logger.info(f"Отправлено сообщение с жалобой в канал {channel.name}")
-
-            db_manager.add_reaction_buttons(
-                message.id,
-                channel.id,
-                "жалоба",
-                reaction_view.approve_id,
-                reaction_view.reject_id
-            )
-
-            return channel
-
-        except Exception as e:
-            logger.error(f"Ошибка при создании канала для жалобы от {user.name}: {e}", exc_info=True)
-            return None
-
-    async def create_suggestion_channel(self, user: discord.User, suggestion_data: dict):
+    async def create_suggestion_channel(self, user: discord.User, suggestion_data: dict, embed: discord.Embed):
         """
         Создание канала для предложения
 
         Args:
             user: Пользователь, отправивший предложение
             suggestion_data: Данные предложения (словарь с полями)
+            embed: Готовый embed для отправки
 
         Returns:
             Созданный канал или None, если не удалось создать
         """
-        try:
-            category = self.guild.get_channel(self.suggestions_category_id)
-
-            if not category:
-                logger.error(f"Категория для предложений с ID {self.suggestions_category_id} не найдена")
-                return None
-
-            channel_name = f"предложение-{user.name.lower()}"
-            channel_name = ''.join(c for c in channel_name if c.isalnum() or c == '-')
-
-            if len(channel_name) > 100:
-                channel_name = channel_name[:90]
-
-            # Получаем роли, которые будут иметь доступ к каналу
-            access_roles = []
-
-            for role_id in self.suggestion_role_ids:
-                try:
-                    role = self.guild.get_role(int(role_id))
-
-                    if role:
-                        access_roles.append(role)
-                except ValueError:
-                    logger.warning(f"Некорректный ID роли: {role_id}")
-
-            # Создаем разрешения для канала
-            overwrites = {
-                self.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-                self.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
-            }
-
-            # Добавляем разрешения для ролей
-            for role in access_roles:
-                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-
-            channel = await self.guild.create_text_channel(
-                name=channel_name,
-                category=category,
-                overwrites=overwrites
-            )
-
-            logger.info(f"Создан канал для предложения: {channel.name} (ID: {channel.id})")
-
-            embed = discord.Embed(title="Предложение", color=discord.Color.green())
-            embed.add_field(name="От кого", value=user.mention, inline=False)
-            embed.add_field(name="Описание", value=suggestion_data.get('description', 'Не указано'), inline=False)
-
-            role_mentions = self._get_role_mentions(self.suggestion_role_ids)
-
-            # Создаем представление с кнопками
-            reaction_view = ReactionView(None, user, "предложение")
-
-            # Отправляем сообщение с эмбедом и кнопками
-            message = await channel.send(content=role_mentions, embed=embed, view=reaction_view)
-            logger.info(f"Отправлено сообщение с предложением в канал {channel.name}")
-
-            db_manager.add_reaction_buttons(
-                message.id,
-                channel.id,
-                "предложение",
-                reaction_view.approve_id,
-                reaction_view.reject_id
-            )
-
-            return channel
-
-        except Exception as e:
-            logger.error(f"Ошибка при создании канала для предложения от {user.name}: {e}", exc_info=True)
-            return None
+        return await self.create_channel("предложение", user, suggestion_data, embed)

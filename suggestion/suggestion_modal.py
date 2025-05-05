@@ -28,30 +28,22 @@ class SuggestionModal(discord.ui.Modal, title="Отправка предложе
             logger.info(f"Получено новое предложение от {interaction.user.name} ({interaction.user.id})")
 
             channel_manager = ChannelManager(interaction.guild)
-            channel = await channel_manager.create_suggestion_channel(interaction.user, suggestion_data)
+            
+            # Создаем embed для канала
+            channel_embed = discord.Embed(title="Предложение", color=discord.Color.green())
+            channel_embed.add_field(name="От кого", value=interaction.user.mention, inline=False)
+            channel_embed.add_field(name="Описание", value=self.description.value, inline=False)
+            
+            channel = await channel_manager.create_suggestion_channel(interaction.user, suggestion_data, channel_embed)
 
             if channel:
                 await interaction.response.defer()
 
-                # Создаем эмбед с информацией о предложении
-                embed = discord.Embed(title="Предложение", color=discord.Color.green())
-                embed.add_field(name="Описание", value=self.description.value, inline=False)
-                embed.add_field(name="Статус", value="Ожидает рассмотрения", inline=False)
-                embed.set_footer(text="Вы получите уведомление, когда предложение будет рассмотрено")
-
-                # Отправляем уведомление в ЛС
-                notification_sent = await NotificationManager.send_submission_notification(
+                await NotificationManager.send_submission_notification(
                     interaction.user, 
-                    "предложение", 
-                    embed
+                    channel_embed
                 )
 
-                # Если уведомление в ЛС не отправлено, отправляем во временном сообщении
-                if not notification_sent:
-                    await interaction.followup.send(
-                        "Ваше предложение успешно отправлено! Спасибо за обратную связь.",
-                        ephemeral=True
-                    )
             else:
                 logger.error(f"Не удалось создать канал для предложения от {interaction.user.name}")
 
@@ -63,16 +55,10 @@ class SuggestionModal(discord.ui.Modal, title="Отправка предложе
         except Exception as e:
             logger.error(f"Ошибка при обработке предложения от {interaction.user.name}: {e}", exc_info=True)
 
-            try:
-                await interaction.response.send_message(
-                    "Произошла ошибка при отправке предложения. Пожалуйста, попробуйте позже.", 
-                    ephemeral=True
-                )
-            except:
-                await interaction.followup.send(
-                    "Произошла ошибка при отправке предложения. Пожалуйста, попробуйте позже.",
-                    ephemeral=True
-                )
+            await interaction.response.send_message(
+                "Произошла ошибка при отправке предложения. Пожалуйста, попробуйте позже.", 
+                ephemeral=True
+            )
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         """Обработка ошибок при отправке формы"""

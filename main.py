@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from tools.message_sender import MessageSender
 from tools.logger import Logger
-from tools.reaction_utils import handle_reaction_button
+from tools.reaction_handlers import handle_reaction_button
 
 logger = Logger.get_instance()
 
