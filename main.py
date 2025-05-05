@@ -14,6 +14,7 @@ load_dotenv()
 
 TOKEN = os.getenv('TOKEN')
 MAIN_CHANNEL_ID = int(os.getenv('MAIN_CHANNEL'))
+ORDER_CHANNEL = int(os.getenv('ORDER_CHANNEL'))
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -26,13 +27,13 @@ async def on_ready():
     logger.info(f'Бот {bot.user} запущен и готов к работе!')
 
     try:
-        channel = bot.get_channel(MAIN_CHANNEL_ID)
+        channel_report = bot.get_channel(MAIN_CHANNEL_ID)
+        channel_order = bot.get_channel(ORDER_CHANNEL)
 
-        if channel:
-            message_sender = MessageSender(bot)
-            await message_sender.send_report_embed(channel)
-        else:
-            logger.warning(f"Канал с ID {MAIN_CHANNEL_ID} не найден")
+        message_sender = MessageSender(bot)
+        await message_sender.send_report_embed(channel_report)
+        await message_sender.send_order_embed(channel_order)
+
     except Exception as e:
         logger.error(f"Ошибка при отправке сообщения: {e}", exc_info=True)
 

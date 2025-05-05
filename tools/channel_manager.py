@@ -11,7 +11,7 @@ logger = Logger.get_instance()
 db_manager = DatabaseManager.get_instance()
 
 class ChannelManager:
-    """Класс для управления каналами с жалобами и предложениями"""
+    """Класс для управления каналами с жалобами, предложениями и ордерами"""
 
     def __init__(self, guild: discord.Guild):
         self.guild = guild
@@ -20,9 +20,11 @@ class ChannelManager:
 
         self.reports_category_id = int(os.getenv('REPORTS_CATEGORY'))
         self.suggestions_category_id = int(os.getenv('SUGGESTIONS_CATEGORY'))
+        self.orders_category_id = int(os.getenv('ORDERS_CATEGORY', 0))
 
         self.report_role_ids = [role_id.strip() for role_id in os.getenv('REPORT_PING_ROLES', '').split(',') if role_id.strip()]
         self.suggestion_role_ids = [role_id.strip() for role_id in os.getenv('SUGGESTION_PING_ROLES', '').split(',') if role_id.strip()]
+        self.order_role_ids = [role_id.strip() for role_id in os.getenv('ORDER_PING_ROLES', '').split(',') if role_id.strip()]
 
     def get_role_mentions(self, role_ids):
         """
@@ -52,10 +54,10 @@ class ChannelManager:
         
     async def create_channel(self, channel_type: str, user: discord.User, data: dict, embed: discord.Embed):
         """
-        Универсальный метод создания канала для жалоб или предложений
+        Универсальный метод создания канала для жалоб, предложений или ордеров
 
         Args:
-            channel_type: Тип канала ('жалоба' или 'предложение')
+            channel_type: Тип канала ('жалоба', 'предложение' или 'ордер')
             user: Пользователь, отправивший запрос
             data: Данные запроса (словарь с полями)
             embed: Готовый embed для отправки
@@ -70,6 +72,9 @@ class ChannelManager:
             elif channel_type == "предложение":
                 category_id = self.suggestions_category_id
                 role_ids = self.suggestion_role_ids
+            elif channel_type == "ордер":
+                category_id = self.orders_category_id
+                role_ids = self.order_role_ids
             else:
                 logger.error(f"Неизвестный тип канала: {channel_type}")
                 return None
@@ -165,3 +170,17 @@ class ChannelManager:
             Созданный канал или None, если не удалось создать
         """
         return await self.create_channel("предложение", user, suggestion_data, embed)
+
+    async def create_order_channel(self, user: discord.User, order_data: dict, embed: discord.Embed):
+        """
+        Создание канала для ордера
+
+        Args:
+            user: Пользователь, отправивший ордер
+            order_data: Данные ордера (словарь с полями)
+            embed: Готовый embed для отправки
+
+        Returns:
+            Созданный канал или None, если не удалось создать
+        """
+        return await self.create_channel("ордер", user, order_data, embed)
