@@ -6,68 +6,15 @@ import asyncio
 
 from dotenv import load_dotenv
 
-from utils.logger import Logger
+from tools.logger import Logger
 from database.db_manager import DatabaseManager
+from tools.notification_manager import NotificationManager
+from tools.log_manager import LogManager
 
 load_dotenv()
 
 logger = Logger.get_instance()
 db_manager = DatabaseManager.get_instance()
-
-LOG_CHANNEL_ID = int(os.getenv('LOG_CHANNEL', 0))
-
-async def send_log_message(bot, user, content_type, action, message=None, reason=None, author=None):
-    """
-    Отправка сообщения в лог-канал
-
-    Args:
-        bot: Экземпляр бота
-        user: Пользователь, отправивший заявку
-        content_type: Тип заявки (жалоба/предложение)
-        action: Действие (одобрена/отклонена)
-        message: Сообщение с эмбедом заявки
-        reason: Причина отклонения (опционально)
-        author: Модератор, совершивший действие
-    """
-    if LOG_CHANNEL_ID == 0:
-        logger.warning("ID лог-канала не указан в .env файле")
-        return
-
-    channel = bot.get_channel(LOG_CHANNEL_ID)
-    if not channel:
-        logger.warning(f"Лог-канал с ID {LOG_CHANNEL_ID} не найден")
-        return
-
-    # Определяем цвет в зависимости от действия
-    color = discord.Color.green() if action == "одобрена" else discord.Color.red()
-
-    embed = discord.Embed(
-        title=f"{content_type.capitalize()} {action}",
-        color=color
-    )
-
-    embed.add_field(name="От пользователя", value=f"{user.mention} ({user.name})", inline=False)
-
-    if author:
-        embed.add_field(name=f"Кем {action}", value=f"{author.mention} ({author.name})", inline=False)
-
-    # Если есть сообщение с заявкой, добавляем данные из него
-    if message and message.embeds:
-        original_embed = message.embeds[0]
-        for field in original_embed.fields:
-            # Не дублируем поле "От кого" и поля статуса
-            if field.name not in ["От кого", "Статус", "Причина отклонения"]:
-                embed.add_field(name=field.name, value=field.value, inline=field.inline)
-
-    # Если есть причина отклонения, добавляем её
-    if reason:
-        embed.add_field(name="Причина отклонения", value=reason, inline=False)
-
-    try:
-        await channel.send(embed=embed)
-        logger.info(f"Отправлено сообщение в лог-канал о {action} {content_type}")
-    except Exception as e:
-        logger.error(f"Ошибка при отправке сообщения в лог-канал: {e}", exc_info=True)
 
 def create_reaction_buttons():
     """
@@ -165,7 +112,8 @@ class RejectionModal(discord.ui.Modal, title="Отклонение заявки"
             self.reason.value
         )
 
-        await send_log_message(
+        # Отправляем сообщение в лог-канал
+        await LogManager.send_log_message(
             bot=self.bot,
             user=self.user,
             content_type=content_type,
@@ -180,28 +128,30 @@ class RejectionModal(discord.ui.Modal, title="Отклонение заявки"
             ephemeral=True
         )
 
-        try:
-            embed = discord.Embed(
-                title=f"{content_type.capitalize()} отклонена", 
-                description=f"Ваша {content_type} была отклонена модератором {interaction.user.mention}.", 
-                color=discord.Color.red()
-            )
+        # Создаем эмбед для отправки пользователю
+        embed = discord.Embed(
+            title=f"{content_type.capitalize()} отклонена", 
+            description=f"Ваша {content_type} была отклонена модератором {interaction.user.mention}.", 
+            color=discord.Color.red()
+        )
 
-            if self.message.embeds:
-                original_embed = self.message.embeds[0]
-                for field in original_embed.fields:
-                    # Не дублируем поле "От кого" и поля статуса
-                    if field.name not in ["От кого", "Статус", "Причина отклонения"]:
-                        embed.add_field(name=field.name, value=field.value, inline=field.inline)
+        if self.message.embeds:
+            original_embed = self.message.embeds[0]
+            for field in original_embed.fields:
+                # Не дублируем поле "От кого" и поля статуса
+                if field.name not in ["От кого", "Статус", "Причина отклонения"]:
+                    embed.add_field(name=field.name, value=field.value, inline=field.inline)
 
-            embed.add_field(name="Причина отклонения", value=self.reason.value, inline=False)
+        embed.add_field(name="Причина отклонения", value=self.reason.value, inline=False)
+        embed.set_footer(text=f"{current_date}")
 
-            embed.set_footer(text=f"{current_date}")
-
-            await self.user.send(embed=embed)
-            logger.info(f"Отправлено уведомление пользователю {self.user.name} об отклонении {content_type}")
-        except Exception as e:
-            logger.warning(f"Не удалось отправить сообщение пользователю {self.user.name}: {e}")
+        # Отправляем уведомление пользователю
+        await NotificationManager.send_decision_notification(
+            self.user, 
+            content_type, 
+            "отклонена", 
+            embed
+        )
 
         # Обновляем сообщение, чтобы отключить кнопки
         for item in self.message.components:
@@ -215,7 +165,6 @@ class RejectionModal(discord.ui.Modal, title="Отклонение заявки"
                 embed.set_field_at(i, name="Статус", value="Отклонена", inline=False)
                 break
         else:
-
             embed.add_field(name="Статус", value="Отклонена", inline=False)
 
         embed.add_field(name="Причина отклонения", value=self.reason.value, inline=False)
@@ -327,7 +276,8 @@ async def handle_approve(bot, interaction, message, user):
         "approve"
     )
 
-    await send_log_message(
+    # Отправляем сообщение в лог-канал
+    await LogManager.send_log_message(
         bot=bot,
         user=user,
         content_type=content_type,
@@ -338,26 +288,29 @@ async def handle_approve(bot, interaction, message, user):
 
     await interaction.response.send_message(f"Вы одобрили {content_type} от {user.mention}. Канал будет удален через 10 секунд.", ephemeral=True)
 
-    try:
-        embed = discord.Embed(
-            title=f"{content_type.capitalize()} одобрена", 
-            description=f"Ваша {content_type} была одобрена модератором {interaction.user.mention}.", 
-            color=discord.Color.green()
-        )
+    # Создаем эмбед для отправки пользователю
+    embed = discord.Embed(
+        title=f"{content_type.capitalize()} одобрена", 
+        description=f"Ваша {content_type} была одобрена модератором {interaction.user.mention}.", 
+        color=discord.Color.green()
+    )
 
-        if message.embeds:
-            original_embed = message.embeds[0]
-            for field in original_embed.fields:
-                # Не дублируем поле "От кого" и поля статуса
-                if field.name not in ["От кого", "Статус", "Причина отклонения"]:
-                    embed.add_field(name=field.name, value=field.value, inline=field.inline)
+    if message.embeds:
+        original_embed = message.embeds[0]
+        for field in original_embed.fields:
+            # Не дублируем поле "От кого" и поля статуса
+            if field.name not in ["От кого", "Статус", "Причина отклонения"]:
+                embed.add_field(name=field.name, value=field.value, inline=field.inline)
 
-        embed.set_footer(text=f"{current_date}")
+    embed.set_footer(text=f"{current_date}")
 
-        await user.send(embed=embed)
-        logger.info(f"Отправлено уведомление пользователю {user.name} об одобрении {content_type}")
-    except Exception as e:
-        logger.warning(f"Не удалось отправить сообщение пользователю {user.name}: {e}")
+    # Отправляем уведомление пользователю
+    await NotificationManager.send_decision_notification(
+        user, 
+        content_type, 
+        "одобрена", 
+        embed
+    )
 
     for item in message.components:
         for child in item.children:

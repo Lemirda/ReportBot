@@ -1,7 +1,8 @@
 import discord
 
-from utils.channel_manager import ChannelManager
-from utils.logger import Logger
+from tools.channel_manager import ChannelManager
+from tools.logger import Logger
+from tools.notification_manager import NotificationManager
 
 logger = Logger.get_instance()
 
@@ -32,18 +33,21 @@ class SuggestionModal(discord.ui.Modal, title="Отправка предложе
             if channel:
                 await interaction.response.defer()
 
-                try:
-                    embed = discord.Embed(title="Предложение", color=discord.Color.green())
-                    embed.add_field(name="Описание", value=self.description.value, inline=False)
-                    embed.add_field(name="Статус", value="Ожидает рассмотрения", inline=False)
-                    embed.set_footer(text="Вы получите уведомление, когда предложение будет рассмотрено")
+                # Создаем эмбед с информацией о предложении
+                embed = discord.Embed(title="Предложение", color=discord.Color.green())
+                embed.add_field(name="Описание", value=self.description.value, inline=False)
+                embed.add_field(name="Статус", value="Ожидает рассмотрения", inline=False)
+                embed.set_footer(text="Вы получите уведомление, когда предложение будет рассмотрено")
 
-                    await interaction.user.send(content="Ваша заявка отправлена на рассмотрение:", embed=embed)
+                # Отправляем уведомление в ЛС
+                notification_sent = await NotificationManager.send_submission_notification(
+                    interaction.user, 
+                    "предложение", 
+                    embed
+                )
 
-                    logger.info(f"Отправлено уведомление в ЛС пользователю {interaction.user.name}")
-                except Exception as dm_error:
-                    logger.warning(f"Не удалось отправить сообщение в ЛС пользователю {interaction.user.name}: {dm_error}")
-
+                # Если уведомление в ЛС не отправлено, отправляем во временном сообщении
+                if not notification_sent:
                     await interaction.followup.send(
                         "Ваше предложение успешно отправлено! Спасибо за обратную связь.",
                         ephemeral=True

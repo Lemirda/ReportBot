@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-from utils.logger import Logger
+from tools.logger import Logger
 
 logger = Logger.get_instance()
 

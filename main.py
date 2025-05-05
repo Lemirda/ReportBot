@@ -4,9 +4,9 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from ui.embed_message import EmbedMessageHandler
-from utils.logger import Logger
-from utils.reaction_utils import handle_reaction_button
+from tools.message_sender import MessageSender
+from tools.logger import Logger
+from tools.reaction_utils import handle_reaction_button
 
 logger = Logger.get_instance()
 
@@ -25,20 +25,12 @@ bot = commands.Bot(command_prefix='.', intents=intents)
 async def on_ready():
     logger.info(f'Бот {bot.user} запущен и готов к работе!')
 
-    for guild in bot.guilds:
-        logger.info(f"Сервер: {guild.name} (ID: {guild.id})")
-        logger.info(f"Роли на сервере:")
-        for role in guild.roles:
-            logger.info(f"  - {role.name} (ID: {role.id})")
-
-    await bot.tree.sync()
-
     try:
         channel = bot.get_channel(MAIN_CHANNEL_ID)
 
         if channel:
-            embed_handler = EmbedMessageHandler(bot)
-            await embed_handler.send_main_embed(channel)
+            message_sender = MessageSender(bot)
+            await message_sender.send_report_embed(channel)
         else:
             logger.warning(f"Канал с ID {MAIN_CHANNEL_ID} не найден")
     except Exception as e:
@@ -49,11 +41,9 @@ async def on_interaction(interaction: discord.Interaction):
     """Обработчик взаимодействий с ботом"""
 
     if interaction.type == discord.InteractionType.component:
-        # Получаем ID кнопки
         custom_id = interaction.data.get("custom_id", "")
 
         try:
-            # Если это кнопка одобрения или отклонения
             if custom_id.startswith("approve_") or custom_id.startswith("reject_"):
                 await handle_reaction_button(bot, interaction)
                 return
@@ -64,8 +54,6 @@ async def on_interaction(interaction: discord.Interaction):
             return
 
 if __name__ == "__main__":
-    logger.info("Запуск бота...")
-
     try:
         bot.run(TOKEN)
     except Exception as e:

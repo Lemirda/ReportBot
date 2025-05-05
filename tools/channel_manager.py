@@ -3,8 +3,8 @@ import discord
 
 from dotenv import load_dotenv
 
-from utils.logger import Logger
-from utils.reaction_utils import ReactionView
+from tools.logger import Logger
+from tools.reaction_utils import ReactionView
 from database.db_manager import DatabaseManager
 
 logger = Logger.get_instance()

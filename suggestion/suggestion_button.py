@@ -1,9 +1,8 @@
 import discord
 
-from ui.components.base_button import BaseButton
 from suggestion.suggestion_modal import SuggestionModal
 
-class SuggestionButton(BaseButton):
+class SuggestionButton(discord.ui.Button):
     """Кнопка для отправки предложения"""
 
     def __init__(self):
