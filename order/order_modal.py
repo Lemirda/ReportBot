@@ -52,6 +52,9 @@ class OrderModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction):
         """Обработка отправки формы"""
         try:
+            # Сначала подтверждаем получение формы
+            await interaction.response.defer(ephemeral=True)
+            
             order_data = {
                 'order_type': self.order_type_label,
                 'order_type_value': self.order_type_value,
@@ -92,17 +95,17 @@ class OrderModal(discord.ui.Modal):
 
                 if channel:
                     logger.info(f"Создан канал для ордера: {channel.name}")
+                    # Отправляем уведомление пользователю
                     await NotificationManager.send_submission_notification(interaction.user, order_embed)
                     
-                    await interaction.response.defer()
                 else:
                     logger.error(f"Не удалось создать канал для ордера от {interaction.user.name}")
-                    await interaction.response.send_message(
+                    await interaction.followup.send(
                         "Произошла ошибка при создании канала для ордера. Но ваш ордер был сохранен.",
                         ephemeral=True
                     )
             else:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     f"Ваш ордер успешно отправлен! Мы рассмотрим его в ближайшее время.",
                     ephemeral=True
                 )
