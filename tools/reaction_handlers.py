@@ -16,6 +16,7 @@ logger = Logger.get_instance()
 db_manager = DatabaseManager.get_instance()
 
 REPORT_LOG_CHANNEL=int(os.getenv('REPORT_LOG_CHANNEL'))
+ORDER_LOG_CHANNEL=int(os.getenv('ORDER_LOG_CHANNEL'))
 
 def create_reaction_buttons():
     """
@@ -100,7 +101,19 @@ class RejectionModal(discord.ui.Modal, title="Отклонение заявки"
 
     async def on_submit(self, interaction: discord.Interaction):
         channel = self.message.channel
-        content_type = "жалоба" if "жалоба" in channel.name else "предложение"
+        # Определяем тип контента на основе названия канала
+        if "жалоба" in channel.name:
+            content_type = "жалоба"
+            log_channel = REPORT_LOG_CHANNEL
+        elif "предложение" in channel.name:
+            content_type = "предложение"
+            log_channel = REPORT_LOG_CHANNEL
+        elif "ордер" in channel.name:
+            content_type = "ордер"
+            log_channel = ORDER_LOG_CHANNEL
+        else:
+            content_type = "заявка"  # Значение по умолчанию
+            log_channel = REPORT_LOG_CHANNEL
 
         current_date = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
 
@@ -122,7 +135,7 @@ class RejectionModal(discord.ui.Modal, title="Отклонение заявки"
             message=self.message,
             reason=self.reason.value,
             author=interaction.user,
-            log_channel_id=REPORT_LOG_CHANNEL
+            log_channel_id=log_channel
         )
 
         await interaction.response.defer()
@@ -241,7 +254,19 @@ async def handle_approve(bot, interaction, message, user):
         user: Пользователь, отправивший заявку
     """
     channel = message.channel
-    content_type = "жалоба" if "жалоба" in channel.name else "предложение"
+    # Определяем тип контента на основе названия канала
+    if "жалоба" in channel.name:
+        content_type = "жалоба"
+        log_channel = REPORT_LOG_CHANNEL
+    elif "предложение" in channel.name:
+        content_type = "предложение"
+        log_channel = REPORT_LOG_CHANNEL
+    elif "ордер" in channel.name:
+        content_type = "ордер"
+        log_channel = ORDER_LOG_CHANNEL
+    else:
+        content_type = "заявка"  # Значение по умолчанию
+        log_channel = REPORT_LOG_CHANNEL
 
     current_date = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
 
@@ -264,7 +289,7 @@ async def handle_approve(bot, interaction, message, user):
         message=message,
         reason=None,
         author=interaction.user,
-        log_channel_id=REPORT_LOG_CHANNEL
+        log_channel_id=log_channel
     )
 
     await interaction.response.defer()

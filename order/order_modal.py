@@ -37,7 +37,17 @@ class OrderModal(discord.ui.Modal):
             max_length=1000
         )
         
+        # Поле для указания доказательств
+        self.evidence = discord.ui.TextInput(
+            label="Доказательства",
+            placeholder="Укажите ссылки на скриншоты/видео или другие доказательства...",
+            required=True,
+            style=discord.TextStyle.short,
+            max_length=1000
+        )
+        
         self.add_item(self.game_statics)
+        self.add_item(self.evidence)
 
     async def on_submit(self, interaction: discord.Interaction):
         """Обработка отправки формы"""
@@ -45,7 +55,8 @@ class OrderModal(discord.ui.Modal):
             order_data = {
                 'order_type': self.order_type_label,
                 'order_type_value': self.order_type_value,
-                'game_statics': self.game_statics.value
+                'game_statics': self.game_statics.value,
+                'evidence': self.evidence.value
             }
 
             logger.info(f"Получен новый ордер от {interaction.user.name} ({interaction.user.id}): {self.order_type_label}")
@@ -56,17 +67,18 @@ class OrderModal(discord.ui.Modal):
                 color=discord.Color.blue()
             )
             order_embed.add_field(name="От кого", value=interaction.user.mention, inline=False)
-            order_embed.add_field(name="Тип ордера", value=self.order_type_label, inline=False)
+            
             order_embed.add_field(name="Игровые статики", value=self.game_statics.value, inline=False)
             
-            # Отправка ордера в общий канал ордеров
-            if ORDER_CHANNEL:
-                order_channel = interaction.guild.get_channel(ORDER_CHANNEL)
-                if order_channel:
-                    await order_channel.send(embed=order_embed)
-                    logger.info(f"Ордер отправлен в канал {order_channel.name}")
-                else:
-                    logger.error(f"Канал для ордеров с ID {ORDER_CHANNEL} не найден")
+            # Добавляем тип ордера
+            order_embed.add_field(name="Тип ордера", value=self.order_type_label, inline=False)
+            
+            # Добавляем сумму
+            order_price = self.get_order_price(self.order_type_value)
+            order_embed.add_field(name="Сумма", value=order_price, inline=False)
+            
+            # Добавляем доказательства
+            order_embed.add_field(name="Доказательства", value=self.evidence.value if self.evidence.value else "Не предоставлены", inline=False)
             
             # Создаем канал для ордера если есть категория
             if ORDERS_CATEGORY:
@@ -80,10 +92,9 @@ class OrderModal(discord.ui.Modal):
 
                 if channel:
                     logger.info(f"Создан канал для ордера: {channel.name}")
-                    await interaction.response.send_message(
-                        f"Ваш ордер успешно создан! Мы рассмотрим его в ближайшее время.",
-                        ephemeral=True
-                    )
+                    await NotificationManager.send_submission_notification(interaction.user, order_embed)
+                    
+                    await interaction.response.defer()
                 else:
                     logger.error(f"Не удалось создать канал для ордера от {interaction.user.name}")
                     await interaction.response.send_message(
@@ -91,7 +102,6 @@ class OrderModal(discord.ui.Modal):
                         ephemeral=True
                     )
             else:
-                # Если нет категории, просто отправляем сообщение об успехе
                 await interaction.response.send_message(
                     f"Ваш ордер успешно отправлен! Мы рассмотрим его в ближайшее время.",
                     ephemeral=True
@@ -110,4 +120,19 @@ class OrderModal(discord.ui.Modal):
         await interaction.response.send_message(
             "Произошла ошибка при отправке ордера. Пожалуйста, попробуйте позже.",
             ephemeral=True
-        ) 
+        )
+
+    def get_order_price(self, order_type_value):
+        """Возвращает сумму за ордер в зависимости от его типа"""
+        prices = {
+            "conspiracy_2": "150.000-190.000",
+            "conspiracy_2_activated": "150.000-190.000 + 15.000",
+            "valuable_lesson": "80.000-100.000",
+            "valuable_lesson_activated": "80.000-100.000 + 5.000",
+            "valuable_batch": "178.000",
+            "illegal_business": "174.000",
+            "illegal_business_activated": "189.000",
+            "grover_1": "137.000",
+            "grover_1_activated": "142.000"
+        }
+        return prices.get(order_type_value, "Цена не указана") 

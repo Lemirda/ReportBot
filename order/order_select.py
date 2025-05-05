@@ -18,55 +18,46 @@ class OrderTypeSelect(discord.ui.Select):
         options = [
             discord.SelectOption(
                 label="Конспирация II",
-                description="Ордер на Конспирацию II",
                 value="conspiracy_2",
                 emoji="🕵️"
             ),
             discord.SelectOption(
                 label="Конспирация II с активацией контракта",
-                description="Ордер на Конспирацию II с активацией",
                 value="conspiracy_2_activated",
                 emoji="🔐"
             ),
             discord.SelectOption(
                 label="Ценный урок",
-                description="Ордер на Ценный урок",
                 value="valuable_lesson",
                 emoji="📚"
             ),
             discord.SelectOption(
                 label="Ценный урок с активацией контракта",
-                description="Ордер на Ценный урок с активацией",
                 value="valuable_lesson_activated",
                 emoji="📝"
             ),
             discord.SelectOption(
                 label="Ценная партия",
-                description="Ордер на Ценную партию",
                 value="valuable_batch",
                 emoji="💎"
             ),
             discord.SelectOption(
                 label="Незаконное предприятие",
-                description="Ордер на Незаконное предприятие",
                 value="illegal_business",
                 emoji="🏭"
             ),
             discord.SelectOption(
                 label="Незаконное предприятие с активацией контракта",
-                description="Ордер на Незаконное предприятие с активацией",
                 value="illegal_business_activated",
                 emoji="⚙️"
             ),
             discord.SelectOption(
                 label="Гровер I",
-                description="Ордер на Гровер I",
                 value="grover_1",
                 emoji="🌱"
             ),
             discord.SelectOption(
                 label="Гровер I с активацией контракта",
-                description="Ордер на Гровер I с активацией",
                 value="grover_1_activated",
                 emoji="🌿"
             )
