@@ -16,17 +16,17 @@ ORDER_CHANNEL = int(os.getenv('ORDER_CHANNEL', 0))
 ORDER_LOG_CHANNEL = int(os.getenv('ORDER_LOG_CHANNEL', 0))
 
 class OrderModal(discord.ui.Modal):
-    """Модальное окно для создания ордера"""
+    """Модальное окно для создания запроса"""
 
     def __init__(self, order_type_label, order_type_value):
         """
-        Инициализация модального окна для ордера
+        Инициализация модального окна для запроса
         
         Args:
-            order_type_label: Название типа ордера (для отображения)
-            order_type_value: Значение типа ордера (для обработки)
+            order_type_label: Название типа запроса (для отображения)
+            order_type_value: Значение типа запроса (для обработки)
         """
-        super().__init__(title=f"Ордер: {order_type_label}")
+        super().__init__(title=f"Запрос: {order_type_label}")
         self.order_type_label = order_type_label
         self.order_type_value = order_type_value
         
@@ -53,7 +53,7 @@ class OrderModal(discord.ui.Modal):
     
     def extract_statics_from_text(self, text):
         """
-        Извлекает все числовые статики из текста
+        Извлекает все потенциальные статики из текста
         
         Args:
             text: Текст для извлечения статиков
@@ -61,9 +61,14 @@ class OrderModal(discord.ui.Modal):
         Returns:
             Список найденных статиков
         """
-        # Ищем числа длиной от 4 до 6 цифр
-        pattern = r'\b\d{4,6}\b'
-        return re.findall(pattern, text)
+        # Извлекаем все отдельные слова как потенциальные статики
+        words = re.findall(r'\b\w+\b', text)
+        
+        # Если текст не содержит отдельных слов, возвращаем весь текст как один статик
+        if not words and text.strip():
+            return [text.strip()]
+            
+        return words
     
     def find_users_by_statics(self, statics, guild):
         """
@@ -80,6 +85,7 @@ class OrderModal(discord.ui.Modal):
         found_users = {}
         
         for static in statics:
+            # Пробуем найти пользователя сначала по точному совпадению
             users = user_manager.get_user_by_game_static(static)
             if users and len(users) > 0:
                 # Попытаемся найти пользователя на сервере
@@ -107,23 +113,30 @@ class OrderModal(discord.ui.Modal):
                 'evidence': self.evidence.value
             }
 
-            logger.info(f"Получен новый ордер от {interaction.user.name} ({interaction.user.id}): {self.order_type_label}")
+            logger.info(f"Получен новый запрос от {interaction.user.name} ({interaction.user.id}): {self.order_type_label}")
 
-            # Извлекаем статики из текста и ищем пользователей
+            # Извлекаем все статики из текста и ищем пользователей
             statics = self.extract_statics_from_text(self.game_statics.value)
             found_users = self.find_users_by_statics(statics, interaction.guild)
             
-            # Создаем список найденных пользователей
+            # Создаем список найденных и ненайденных пользователей
             users_list = []
-            for i, (static, member) in enumerate(found_users.items(), 1):
-                if member:
-                    users_list.append(f"{i}. {static} - {member.mention}")
-                else:
-                    users_list.append(f"{i}. {static} - Пользователь не найден")
             
-            # Создаем embed для отправки в канал ордеров
+            if found_users:
+                for static, member in found_users.items():
+                    if member:
+                        users_list.append(f"✅ `{static}` → {member.mention}")
+                    else:
+                        users_list.append(f"❓ `{static}` → Пользователь не найден")
+                
+                users_value = "\n".join(users_list)
+            else:
+                # Если не нашли статиков, берем весь текст как один статик
+                users_value = f"❓ `{self.game_statics.value}` → Пользователь не найден"
+            
+            # Создаем embed для отправки в канал запросов
             order_embed = discord.Embed(
-                title=f":identification_card: Ордер: {self.order_type_label}", 
+                title=f":identification_card: Запрос: {self.order_type_label}", 
                 color=0x3498db  # Яркий синий цвет
             )
             
@@ -145,51 +158,7 @@ class OrderModal(discord.ui.Modal):
                 inline=False
             )
             
-            # Поле с игровыми статиками, форматируем по-красивее
-            formatted_statics = self.game_statics.value.replace("\n", " • ")
-            order_embed.add_field(
-                name="🎮 Игровые статики",
-                value=f"```{formatted_statics}```",
-                inline=False
-            )
-            
-            # Добавляем найденных пользователей с эмодзи
-            formatted_users = []
-            has_found = False
-            has_not_found = False
-            
-            for static, member in found_users.items():
-                if member:
-                    has_found = True
-                    formatted_users.append(f"✅ `{static}` → {member.mention}")
-                else:
-                    has_not_found = True
-                    formatted_users.append(f"❓ `{static}` → Пользователь не найден")
-            
-            # Если нет статиков, добавляем сообщение об этом
-            if not formatted_users:
-                users_value = "```Игровые статики не найдены```"
-            else:
-                # Группируем статики - сначала найденные, потом не найденные
-                found_users_list = [u for u in formatted_users if "✅" in u]
-                not_found_users_list = [u for u in formatted_users if "❓" in u]
-                
-                # Добавляем заголовки к каждой группе
-                result_parts = []
-                
-                if found_users_list:
-                    result_parts.append("**Найдены:**")
-                    result_parts.extend(found_users_list)
-                
-                if not_found_users_list:
-                    if found_users_list:  # Добавляем разделитель, если есть обе группы
-                        result_parts.append("\n**Не найдены:**")
-                    else:
-                        result_parts.append("**Не найдены:**")
-                    result_parts.extend(not_found_users_list)
-                
-                users_value = "\n".join(result_parts)
-            
+            # Поле с пользователями по статикам
             order_embed.add_field(
                 name="🔍 Пользователи по статикам",
                 value=users_value,
@@ -211,7 +180,7 @@ class OrderModal(discord.ui.Modal):
             if interaction.user.avatar:
                 order_embed.set_thumbnail(url=interaction.user.avatar.url)
             
-            # Создаем канал для ордера если есть категория
+            # Создаем канал для запроса если есть категория
             if ORDERS_CATEGORY:
                 channel_manager = ChannelManager(interaction.guild)
                 
@@ -222,37 +191,37 @@ class OrderModal(discord.ui.Modal):
                 )
 
                 if channel:
-                    logger.info(f"Создан канал для ордера: {channel.name}")
+                    logger.info(f"Создан канал для запроса: {channel.name}")
                     await NotificationManager.send_submission_notification(interaction.user, order_embed)
                 else:
-                    logger.error(f"Не удалось создать канал для ордера от {interaction.user.name}")
+                    logger.error(f"Не удалось создать канал для запроса от {interaction.user.name}")
                     await interaction.followup.send(
-                        "Произошла ошибка при создании канала для ордера. Но ваш ордер был сохранен.",
+                        "Произошла ошибка при создании канала для запроса. Но ваш запрос был сохранен.",
                         ephemeral=True
                     )
             else:
                 await interaction.followup.send(
-                    f"Ваш ордер успешно отправлен! Мы рассмотрим его в ближайшее время.",
+                    f"Ваш запрос успешно отправлен! Мы рассмотрим его в ближайшее время.",
                     ephemeral=True
                 )
 
         except Exception as e:
-            logger.error(f"Ошибка при обработке ордера от {interaction.user.name}: {e}", exc_info=True)
+            logger.error(f"Ошибка при обработке запроса от {interaction.user.name}: {e}", exc_info=True)
             await interaction.followup.send(
-                "Произошла ошибка при отправке ордера. Пожалуйста, попробуйте позже.",
+                "Произошла ошибка при отправке запроса. Пожалуйста, попробуйте позже.",
                 ephemeral=True
             )
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         """Обработка ошибок при отправке формы"""
-        logger.error(f"Ошибка в модальном окне ордера от {interaction.user.name}: {error}", exc_info=True)
+        logger.error(f"Ошибка в модальном окне запроса от {interaction.user.name}: {error}", exc_info=True)
         await interaction.response.send_message(
-            "Произошла ошибка при отправке ордера. Пожалуйста, попробуйте позже.",
+            "Произошла ошибка при отправке запроса. Пожалуйста, попробуйте позже.",
             ephemeral=True
         )
 
     def get_order_price(self, order_type_value):
-        """Возвращает сумму за ордер в зависимости от его типа"""
+        """Возвращает сумму за запрос в зависимости от его типа"""
         prices = {
             "conspiracy_2": "150.000-190.000",
             "conspiracy_2_activated": "150.000-190.000 + 15.000",

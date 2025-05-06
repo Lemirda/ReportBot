@@ -211,7 +211,7 @@ class DatabaseManager:
             user_id: ID пользователя, создавшего заявку
             moderator_id: ID модератора, выполнившего действие
             action: Действие (approve/reject)
-            reason: Причина отклонения (только для reject)
+            reason: Причина отказа (только для reject)
 
         Returns:
             True, если успешно, False в случае ошибки

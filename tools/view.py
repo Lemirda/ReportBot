@@ -15,7 +15,7 @@ class FeedbackView(discord.ui.View):
         self.add_item(SuggestionButton())
 
 class OrderView(discord.ui.View):
-    """Представление с кнопкой ордера"""
+    """Представление с кнопкой запроса"""
 
     def __init__(self, bot: discord.Client):
         super().__init__(timeout=None)

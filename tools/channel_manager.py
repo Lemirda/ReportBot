@@ -11,7 +11,7 @@ logger = Logger.get_instance()
 db_manager = DatabaseManager.get_instance()
 
 class ChannelManager:
-    """Класс для управления каналами с жалобами, предложениями и ордерами"""
+    """Класс для управления каналами с жалобами, предложениями и запросами"""
 
     def __init__(self, guild: discord.Guild):
         self.guild = guild
@@ -54,10 +54,10 @@ class ChannelManager:
         
     async def create_channel(self, channel_type: str, user: discord.User, data: dict, embed: discord.Embed):
         """
-        Универсальный метод создания канала для жалоб, предложений или ордеров
+        Универсальный метод создания канала для жалоб, предложений или запросов
 
         Args:
-            channel_type: Тип канала ('жалоба', 'предложение' или 'ордер')
+            channel_type: Тип канала ('жалоба', 'предложение' или 'запрос')
             user: Пользователь, отправивший запрос
             data: Данные запроса (словарь с полями)
             embed: Готовый embed для отправки
@@ -72,7 +72,7 @@ class ChannelManager:
             elif channel_type == "предложение":
                 category_id = self.suggestions_category_id
                 role_ids = self.suggestion_role_ids
-            elif channel_type == "ордер":
+            elif channel_type == "запрос":
                 category_id = self.orders_category_id
                 role_ids = self.order_role_ids
             else:
@@ -173,14 +173,14 @@ class ChannelManager:
 
     async def create_order_channel(self, user: discord.User, order_data: dict, embed: discord.Embed):
         """
-        Создание канала для ордера
+        Создание канала для запроса
 
         Args:
-            user: Пользователь, отправивший ордер
-            order_data: Данные ордера (словарь с полями)
+            user: Пользователь, отправивший запрос
+            order_data: Данные запроса (словарь с полями)
             embed: Готовый embed для отправки
 
         Returns:
             Созданный канал или None, если не удалось создать
         """
-        return await self.create_channel("ордер", user, order_data, embed)
+        return await self.create_channel("запрос", user, order_data, embed)

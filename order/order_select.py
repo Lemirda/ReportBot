@@ -3,16 +3,16 @@ import discord
 from order.order_modal import OrderModal
 
 class OrderSelect(discord.ui.View):
-    """Представление с выпадающим списком для выбора типа ордера"""
+    """Представление с выпадающим списком для выбора типа запроса"""
     
     def __init__(self):
         super().__init__(timeout=300)  # Таймаут 5 минут
         
-        # Добавляем селектор с вариантами ордеров
+        # Добавляем селектор с вариантами запросов
         self.add_item(OrderTypeSelect())
         
 class OrderTypeSelect(discord.ui.Select):
-    """Выпадающий список для выбора типа ордера"""
+    """Выпадающий список для выбора типа запроса"""
     
     def __init__(self):
         options = [
@@ -64,17 +64,17 @@ class OrderTypeSelect(discord.ui.Select):
         ]
         
         super().__init__(
-            placeholder="Выберите тип ордера",
+            placeholder="Выберите тип запроса",
             min_values=1,
             max_values=1,
             options=options
         )
     
     async def callback(self, interaction: discord.Interaction):
-        # Получаем выбранный тип ордера
+        # Получаем выбранный тип запроса
         selected_value = self.values[0]
         selected_option = next((option for option in self.options if option.value == selected_value), None)
         
         if selected_option:
-            # Создаем и показываем модальное окно с выбранным типом ордера
+            # Создаем и показываем модальное окно с выбранным типом запроса
             await interaction.response.send_modal(OrderModal(selected_option.label, selected_value)) 

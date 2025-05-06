@@ -62,21 +62,21 @@ class MessageSender:
         return await self.send_embed(channel, embed, view) 
 
     async def send_order_embed(self, channel: discord.abc.Messageable):
-        """Отправляет эмбед с кнопкой ордера"""
+        """Отправляет эмбед с кнопкой запроса"""
         if isinstance(channel, discord.TextChannel):
             await self.clear_channel(channel)
 
         embed = discord.Embed(
-            title="Ордеры",
-            description="Используйте кнопку ниже, чтобы разместить ордер.",
+            title="Запросы",
+            description="Используйте кнопку ниже, чтобы разместить запрос.",
             color=discord.Color.blue()
         )
 
         embed.set_image(url="https://cdn.discordapp.com/attachments/1339296664925503503/1368522112137957416/videoPreview.png?ex=68188709&is=68173589&hm=8316d77871c2864e6550bc158c0d8b3e8749bbc6a63322118282d47583832766&")
         
         embed.add_field(
-            name="📋 Ордер",
-            value="Нажмите кнопку 'Разместить ордер', чтобы создать заявку на выполнение миссии.",
+            name="📋 Запрос",
+            value="Нажмите кнопку 'Разместить запрос', чтобы создать заявку на выполнение миссии.",
             inline=False
         )
 

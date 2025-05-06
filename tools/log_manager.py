@@ -18,10 +18,10 @@ class LogManager:
         Args:
             bot: Экземпляр бота
             user: Пользователь, отправивший заявку
-            content_type: Тип заявки (жалоба/предложение)
-            action: Действие (одобрена/отклонена)
+            content_type: Тип заявки (жалоба/предложение/запрос)
+            action: Действие (одобрен/одобрена/одобрено/отклонен/отклонена/отклонено)
             message: Сообщение с эмбедом заявки
-            reason: Причина отклонения (опционально)
+            reason: Причина отказа (опционально)
             author: Модератор, совершивший действие
             log_channel_id: ID лог-канала
         """
@@ -32,32 +32,39 @@ class LogManager:
             return
 
         # Определяем цвет в зависимости от действия
-        color = discord.Color.green() if action == "одобрена" else discord.Color.red()
+        color = discord.Color.green() if "одобрен" in action else discord.Color.red()
+
+        # Корректируем форму действия в зависимости от типа контента
+        corrected_action = action
+        if action in ["одобрена", "отклонена"] and content_type == "запрос":
+            corrected_action = "одобрен" if action == "одобрена" else "отклонен"
+        elif action in ["одобрена", "отклонена"] and content_type == "предложение":
+            corrected_action = "одобрено" if action == "одобрена" else "отклонено"
 
         embed = discord.Embed(
-            title=f"{content_type.capitalize()} {action}",
+            title=f"{content_type.capitalize()} {corrected_action}",
             color=color
         )
 
         embed.add_field(name="От пользователя", value=f"{user.mention} ({user.name})", inline=False)
 
         if author:
-            embed.add_field(name=f"Кем {action}", value=f"{author.mention} ({author.name})", inline=False)
+            embed.add_field(name=f"Кем {corrected_action}", value=f"{author.mention} ({author.name})", inline=False)
 
         # Если есть сообщение с заявкой, добавляем данные из него
         if message and message.embeds:
             original_embed = message.embeds[0]
             for field in original_embed.fields:
                 # Не дублируем поле "От кого" и поля статуса
-                if field.name not in ["От кого", "Статус", "Причина отклонения"]:
+                if field.name not in ["От кого", "Статус", "Причина отказа"]:
                     embed.add_field(name=field.name, value=field.value, inline=field.inline)
 
-        # Если есть причина отклонения, добавляем её
+        # Если есть Причина отказа, добавляем её
         if reason:
-            embed.add_field(name="Причина отклонения", value=reason, inline=False)
+            embed.add_field(name="Причина отказа", value=reason, inline=False)
 
         try:
             await channel.send(embed=embed)
-            logger.info(f"Отправлено сообщение в лог-канал о {action} {content_type}")
+            logger.info(f"Отправлено сообщение в лог-канал о {corrected_action} {content_type}")
         except Exception as e:
             logger.error(f"Ошибка при отправке сообщения в лог-канал: {e}", exc_info=True) 

@@ -2,6 +2,7 @@ import os
 import uuid
 import discord
 import datetime
+import re
 
 from dotenv import load_dotenv
 
@@ -86,7 +87,7 @@ class RejectionModal(discord.ui.Modal, title="Отклонение заявки"
         user: Пользователь, создавший заявку
     """
     reason = discord.ui.TextInput(
-        label="Причина отклонения",
+        label="Причина отказа",
         placeholder="Укажите причину отклонения заявки...",
         style=discord.TextStyle.paragraph,
         required=True,
@@ -108,8 +109,8 @@ class RejectionModal(discord.ui.Modal, title="Отклонение заявки"
         elif "предложение" in channel.name:
             content_type = "предложение"
             log_channel = REPORT_LOG_CHANNEL
-        elif "ордер" in channel.name:
-            content_type = "ордер"
+        elif "запрос" in channel.name:
+            content_type = "запрос"
             log_channel = ORDER_LOG_CHANNEL
         else:
             content_type = "заявка"  # Значение по умолчанию
@@ -142,19 +143,47 @@ class RejectionModal(discord.ui.Modal, title="Отклонение заявки"
 
         # Создаем эмбед для отправки пользователю
         embed = discord.Embed(
-            title=f"{content_type.capitalize()} отклонена", 
-            description=f"Ваша {content_type} была отклонена модератором {interaction.user.mention}.", 
+            title=f"{content_type.capitalize()} {'отклонен' if content_type == 'запрос' else ('отклонено' if content_type == 'предложение' else 'отклонена')}", 
+            description=f"Ваш{'' if content_type == 'запрос' else ('е' if content_type == 'предложение' else 'а')} {content_type} {'отклонен' if content_type == 'запрос' else ('отклонено' if content_type == 'предложение' else 'отклонена')} модератором {interaction.user.mention}.", 
             color=discord.Color.red()
         )
 
         if self.message.embeds:
             original_embed = self.message.embeds[0]
             for field in original_embed.fields:
-                # Не дублируем поле "От кого" и поля статуса
-                if field.name not in ["От кого", "Статус", "Причина отклонения"]:
-                    embed.add_field(name=field.name, value=field.value, inline=field.inline)
+                # Не дублируем поле "От кого"/"Заказчик", "Статус", "Причина отказа" и "Пользователи по статикам"
+                if field.name not in ["От кого", "👤 Заказчик", "Статус", "Причина отказа", "🔍 Пользователи по статикам"]:
+                    # Если это поле "Игровые статики" или "🎮 Игровые статики", обрабатываем отдельно
+                    if field.name in ["Игровые статики", "🎮 Игровые статики"]:
+                        # Удаляем числовые статики (4-6 цифр) из текста
+                        value = field.value
+                        # Если значение в формате кода (обрамлено ```), обрабатываем внутреннюю часть
+                        if value.startswith("```") and value.endswith("```"):
+                            inner_text = value[3:-3]  # Удаляем ```
+                            # Заменяем числовые статики на пустую строку
+                            filtered_text = re.sub(r'\b\d{4,6}\b', '', inner_text)
+                            # Удаляем лишние пробелы и символы
+                            filtered_text = re.sub(r'\s+', ' ', filtered_text).strip()
+                            # Удаляем повторяющиеся разделители
+                            filtered_text = re.sub(r'(\s•\s)+', ' • ', filtered_text)
+                            filtered_text = re.sub(r'^•\s', '', filtered_text)  # Удаляем начальный разделитель
+                            filtered_text = re.sub(r'\s•$', '', filtered_text)  # Удаляем конечный разделитель
+                            
+                            # Если осталось пустое значение или только разделители, пропускаем поле
+                            if filtered_text and not filtered_text.isspace() and filtered_text != "•":
+                                embed.add_field(name=field.name, value=f"```{filtered_text}```", inline=field.inline)
+                        else:
+                            # Если текст не в формате кода
+                            filtered_text = re.sub(r'\b\d{4,6}\b', '', value)
+                            filtered_text = re.sub(r'\s+', ' ', filtered_text).strip()
+                            
+                            if filtered_text and not filtered_text.isspace():
+                                embed.add_field(name=field.name, value=filtered_text, inline=field.inline)
+                    else:
+                        # Добавляем другие поля без изменений
+                        embed.add_field(name=field.name, value=field.value, inline=field.inline)
 
-        embed.add_field(name="Причина отклонения", value=self.reason.value, inline=False)
+        embed.add_field(name="Причина отказа", value=self.reason.value, inline=False)
         embed.set_footer(text=f"{current_date}")
 
         # Отправляем уведомление пользователю
@@ -261,8 +290,8 @@ async def handle_approve(bot, interaction, message, user):
     elif "предложение" in channel.name:
         content_type = "предложение"
         log_channel = REPORT_LOG_CHANNEL
-    elif "ордер" in channel.name:
-        content_type = "ордер"
+    elif "запрос" in channel.name:
+        content_type = "запрос"
         log_channel = ORDER_LOG_CHANNEL
     else:
         content_type = "заявка"  # Значение по умолчанию
@@ -296,8 +325,8 @@ async def handle_approve(bot, interaction, message, user):
 
     # Создаем эмбед для отправки пользователю
     embed = discord.Embed(
-        title=f"{content_type.capitalize()} одобрена", 
-        description=f"Ваша {content_type} была одобрена модератором {interaction.user.mention}.", 
+        title=f"{content_type.capitalize()} {'одобрен' if content_type == 'запрос' else ('одобрено' if content_type == 'предложение' else 'одобрена')}", 
+        description=f"Ваш{'' if content_type == 'запрос' else ('е' if content_type == 'предложение' else 'а')} {content_type} {'одобрен' if content_type == 'запрос' else ('одобрено' if content_type == 'предложение' else 'одобрена')} модератором {interaction.user.mention}.", 
         color=discord.Color.green()
     )
 
