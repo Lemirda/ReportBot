@@ -3,6 +3,7 @@ import discord
 from tools.channel_manager import ChannelManager
 from tools.logger import Logger
 from tools.notification_manager import NotificationManager
+from tools.embed import EmbedBuilder
 
 logger = Logger.get_instance()
 
@@ -29,10 +30,8 @@ class SuggestionModal(discord.ui.Modal, title="Отправка предложе
 
             channel_manager = ChannelManager(interaction.guild)
             
-            # Создаем embed для канала
-            channel_embed = discord.Embed(title="Предложение", color=discord.Color.green())
-            channel_embed.add_field(name="От кого", value=interaction.user.mention, inline=False)
-            channel_embed.add_field(name="Описание", value=self.description.value, inline=False)
+            # Создаем embed для канала с помощью EmbedBuilder
+            channel_embed = EmbedBuilder.create_suggestion_embed(interaction.user, suggestion_data)
             
             channel = await channel_manager.create_suggestion_channel(interaction.user, suggestion_data, channel_embed)
 

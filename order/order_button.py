@@ -13,7 +13,6 @@ class OrderButton(discord.ui.Button):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        # Открываем меню выбора типа запроса
         await interaction.response.send_message(
             "Выберите тип запроса:", 
             view=OrderSelect(), 

@@ -10,6 +10,7 @@ from tools.logger import Logger
 from database.db_manager import DatabaseManager
 from tools.notification_manager import NotificationManager
 from tools.log_manager import LogManager
+from tools.embed import EmbedBuilder
 
 load_dotenv()
 
@@ -20,177 +21,123 @@ REPORT_LOG_CHANNEL=int(os.getenv('REPORT_LOG_CHANNEL'))
 ORDER_LOG_CHANNEL=int(os.getenv('ORDER_LOG_CHANNEL'))
 
 def create_reaction_buttons():
-    """
-    Создание уникальных ID для кнопок реакции
-
-    Returns:
-        Кортеж из двух ID (approve_id, reject_id)
-    """
+    """Создание уникальных ID для кнопок реакции"""
     approve_id = f"approve_{str(uuid.uuid4())[:8]}"
     reject_id = f"reject_{str(uuid.uuid4())[:8]}"
     return approve_id, reject_id
 
 class ReactionView(discord.ui.View):
     """Представление с кнопками для реакции на заявку"""
-
-    def __init__(self, bot, user, content_type, message_id=None, channel_id=None):
-        """
-        Инициализация представления с кнопками
-
-        Args:
-            bot: Экземпляр бота
-            user: Пользователь, отправивший заявку
-            content_type: Тип заявки (жалоба/предложение)
-            message_id: ID сообщения (для загрузки из БД)
-            channel_id: ID канала (для загрузки из БД)
-        """
+    
+    def __init__(self, message, user):
         super().__init__(timeout=None)
-
-        self.bot = bot
-        self.user = user
-        self.content_type = content_type
-
-        # Генерируем ID для кнопок или загружаем из базы
-        if message_id and channel_id:
-            # Загружаем данные для существующей кнопки
-            buttons = db_manager.get_reaction_buttons(message_id, channel_id)
-
-            if buttons:
-                self.approve_id = buttons.get('approve_button_id')
-                self.reject_id = buttons.get('reject_button_id')
-            else:
-                # Если данные не найдены, генерируем новые ID
-                self.approve_id, self.reject_id = create_reaction_buttons()
-        else:
-            # Генерируем новые ID для новых кнопок
-            self.approve_id, self.reject_id = create_reaction_buttons()
-
-        self.add_item(discord.ui.Button(
-            style=discord.ButtonStyle.success,
-            label="Одобрить",
-            custom_id=self.approve_id
-        ))
-
-        self.add_item(discord.ui.Button(
-            style=discord.ButtonStyle.danger,
-            label="Отклонить",
-            custom_id=self.reject_id
-        ))
-
-class RejectionModal(discord.ui.Modal, title="Отклонение заявки"):
-    """
-    Модальное окно для ввода причины отклонения заявки
-
-    Attributes:
-        bot: Экземпляр бота
-        message: Сообщение с кнопками
-        user: Пользователь, создавший заявку
-    """
-    reason = discord.ui.TextInput(
-        label="Причина отказа",
-        placeholder="Укажите причину отклонения заявки...",
-        style=discord.TextStyle.paragraph,
-        required=True,
-        max_length=1000
-    )
-
-    def __init__(self, bot, message, user):
-        super().__init__()
-        self.bot = bot
         self.message = message
         self.user = user
+        
+        approve_id, reject_id = create_reaction_buttons()
+        
+        approve_button = discord.ui.Button(
+            style=discord.ButtonStyle.success,
+            label="Одобрить",
+            emoji="✅",
+            custom_id=approve_id
+        )
+        
+        reject_button = discord.ui.Button(
+            style=discord.ButtonStyle.danger,
+            label="Отклонить",
+            emoji="❌",
+            custom_id=reject_id
+        )
+        
+        self.add_item(approve_button)
+        self.add_item(reject_button)
 
+class RejectReasonModal(discord.ui.Modal, title="Причина отклонения"):
+    """Модальное окно для ввода причины отклонения заявки"""
+    
+    reason = discord.ui.TextInput(
+        label="Причина отклонения",
+        placeholder="Укажите причину отклонения...",
+        required=True,
+        style=discord.TextStyle.paragraph,
+        max_length=1000
+    )
+    
+    def __init__(self, message, user):
+        super().__init__()
+        self.message = message
+        self.user = user
+    
     async def on_submit(self, interaction: discord.Interaction):
         channel = self.message.channel
-        # Определяем тип контента на основе названия канала
-        if "жалоба" in channel.name:
+        
+        # Определяем тип содержимого канала на основе его имени
+        channel_name = channel.name.lower()
+        if "жалоба" in channel_name:
             content_type = "жалоба"
-            log_channel = REPORT_LOG_CHANNEL
-        elif "предложение" in channel.name:
+            status = "отклонена"
+        elif "предложение" in channel_name:
             content_type = "предложение"
-            log_channel = REPORT_LOG_CHANNEL
-        elif "запрос" in channel.name:
+            status = "отклонено"
+        elif "запрос" in channel_name:
             content_type = "запрос"
-            log_channel = ORDER_LOG_CHANNEL
+            status = "отклонен"
         else:
-            content_type = "заявка"  # Значение по умолчанию
-            log_channel = REPORT_LOG_CHANNEL
-
-        current_date = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
-
-        db_manager.log_reaction_action(
-            self.message.id,
-            channel.id,
-            self.user.id,
-            interaction.user.id,
-            "reject",
-            self.reason.value
-        )
-
-        # Отправляем сообщение в лог-канал
-        await LogManager.send_log_message(
-            bot=self.bot,
-            user=self.user,
+            content_type = "заявка"
+            status = "отклонена"
+        
+        # Получаем текущую дату
+        current_date = datetime.datetime.now().strftime("%d.%m.%Y")
+        
+        # Создаем эмбед для уведомления пользователя
+        embed = EmbedBuilder.create_decision_embed(
             content_type=content_type,
-            action="отклонена",
-            message=self.message,
-            reason=self.reason.value,
-            author=interaction.user,
-            log_channel_id=log_channel
+            is_approved=False,
+            moderator=interaction.user,
+            original_embed=self.message.embeds[0] if self.message.embeds else None,
+            reason=self.reason.value
         )
-
-        await interaction.response.defer()
-
-        # Создаем эмбед для отправки пользователю
-        embed = discord.Embed(
-            title=f"{content_type.capitalize()} {'отклонен' if content_type == 'запрос' else ('отклонено' if content_type == 'предложение' else 'отклонена')}", 
-            description=f"Ваш{'' if content_type == 'запрос' else ('е' if content_type == 'предложение' else 'а')} {content_type} {'отклонен' if content_type == 'запрос' else ('отклонено' if content_type == 'предложение' else 'отклонена')} модератором {interaction.user.mention}.", 
-            color=discord.Color.red()
-        )
-
-        if self.message.embeds:
-            original_embed = self.message.embeds[0]
-            for field in original_embed.fields:
-                # Не дублируем поле "От кого"/"Заказчик", "Статус", "Причина отказа" и "Пользователи по статикам"
-                if field.name not in ["От кого", "👤 Заказчик", "Статус", "Причина отказа", "🔍 Пользователи по статикам"]:
-                    # Если это поле "Игровые статики" или "🎮 Игровые статики", обрабатываем отдельно
-                    if field.name in ["Игровые статики", "🎮 Игровые статики"]:
-                        # Удаляем числовые статики (4-6 цифр) из текста
-                        value = field.value
-                        # Если значение в формате кода (обрамлено ```), обрабатываем внутреннюю часть
-                        if value.startswith("```") and value.endswith("```"):
-                            inner_text = value[3:-3]  # Удаляем ```
-                            # Заменяем числовые статики на пустую строку
-                            filtered_text = re.sub(r'\b\d{4,6}\b', '', inner_text)
-                            # Удаляем лишние пробелы и символы
-                            filtered_text = re.sub(r'\s+', ' ', filtered_text).strip()
-                            # Удаляем повторяющиеся разделители
-                            filtered_text = re.sub(r'(\s•\s)+', ' • ', filtered_text)
-                            filtered_text = re.sub(r'^•\s', '', filtered_text)  # Удаляем начальный разделитель
-                            filtered_text = re.sub(r'\s•$', '', filtered_text)  # Удаляем конечный разделитель
-                            
-                            # Если осталось пустое значение или только разделители, пропускаем поле
-                            if filtered_text and not filtered_text.isspace() and filtered_text != "•":
-                                embed.add_field(name=field.name, value=f"```{filtered_text}```", inline=field.inline)
-                        else:
-                            # Если текст не в формате кода
-                            filtered_text = re.sub(r'\b\d{4,6}\b', '', value)
-                            filtered_text = re.sub(r'\s+', ' ', filtered_text).strip()
-                            
-                            if filtered_text and not filtered_text.isspace():
-                                embed.add_field(name=field.name, value=filtered_text, inline=field.inline)
-                    else:
-                        # Добавляем другие поля без изменений
-                        embed.add_field(name=field.name, value=field.value, inline=field.inline)
-
-        embed.add_field(name="Причина отказа", value=self.reason.value, inline=False)
-        embed.set_footer(text=f"{current_date}")
 
         # Отправляем уведомление пользователю
         await NotificationManager.send_decision_notification(
             self.user, 
             embed
         )
+
+        # Отправляем сообщение в лог-канал, если это жалоба или запрос
+        try:
+            if content_type == "жалоба" and REPORT_LOG_CHANNEL:
+                log_channel = interaction.guild.get_channel(REPORT_LOG_CHANNEL)
+                if log_channel:
+                    await LogManager.send_decision_log(
+                        channel=log_channel,
+                        content_type=content_type,
+                        status=status,
+                        color=discord.Color.red(),
+                        user=self.user,
+                        moderator=interaction.user,
+                        reason=self.reason.value,
+                        original_embed=self.message.embeds[0] if self.message.embeds else None
+                    )
+            elif content_type == "запрос" and ORDER_LOG_CHANNEL:
+                log_channel = interaction.guild.get_channel(ORDER_LOG_CHANNEL)
+                if log_channel:
+                    await LogManager.send_decision_log(
+                        channel=log_channel,
+                        content_type=content_type,
+                        status=status,
+                        color=discord.Color.red(),
+                        user=self.user,
+                        moderator=interaction.user,
+                        reason=self.reason.value,
+                        original_embed=self.message.embeds[0] if self.message.embeds else None
+                    )
+        except Exception as e:
+            logger.error(f"Ошибка при отправке лога решения: {e}", exc_info=True)
+
+        # Используем defer() вместо отправки сообщения
+        await interaction.response.defer()
 
         try:
             await channel.delete(reason=f"{content_type.capitalize()} отклонена модератором {interaction.user.name}")
@@ -203,146 +150,103 @@ class RejectionModal(discord.ui.Modal, title="Отклонение заявки"
             except:
                 pass
 
-async def handle_reaction_button(bot, interaction):
-    """
-    Обработка нажатия на кнопку реакции
-
-    Args:
-        bot: Экземпляр бота
-        interaction: Объект взаимодействия
-    """
-    button_id = interaction.data.get('custom_id')
-
-    button_info = db_manager.get_button_info_by_id(button_id)
-
-    if not button_info:
-        logger.warning(f"Кнопка с ID {button_id} не найдена в базе данных")
-        await interaction.response.send_message(
-            "Эта кнопка больше не действительна.", 
-            ephemeral=True
-        )
-        return
-
-    channel = bot.get_channel(int(button_info['channel_id']))
-
-    if not channel:
-        logger.warning(f"Канал с ID {button_info['channel_id']} не найден")
-        await interaction.response.send_message(
-            "Канал для этой заявки не найден.", 
-            ephemeral=True
-        )
-        return
-
-    try:
-        message = await channel.fetch_message(int(button_info['message_id']))
-    except discord.NotFound:
-        logger.warning(f"Сообщение с ID {button_info['message_id']} не найдено")
-        await interaction.response.send_message(
-            "Сообщение с заявкой не найдено.", 
-            ephemeral=True
-        )
-        return
-
-    user_id = None
-    user = None
-    content_type = button_info['type']
-
-    if message.embeds:
-        embed = message.embeds[0]
-        # Ищем поле "От кого"
-        for field in embed.fields:
-            if field.name == "От кого":
-                # Извлекаем ID пользователя из упоминания
-                if field.value and "<@" in field.value:
-                    user_id = field.value.split("<@")[1].split(">")[0]
-                    try:
-                        user = await bot.fetch_user(int(user_id))
-                    except:
-                        logger.warning(f"Не удалось получить пользователя с ID {user_id}")
-                break
-
-    if not user:
-        logger.warning("Не удалось определить пользователя из эмбеда")
-        user = interaction.user
-
-    if button_info['is_approve']:
-        # Кнопка одобрения
-        await handle_approve(bot, interaction, message, user)
-    else:
-        # Кнопка отклонения
-        await handle_reject(bot, interaction, message, user)
-
 async def handle_approve(bot, interaction, message, user):
     """
-    Обработка нажатия на кнопку одобрения
-
+    Обработка нажатия на кнопку "Одобрить"
+    
     Args:
-        bot: Экземпляр бота
+        bot: Бот Discord
         interaction: Объект взаимодействия
         message: Сообщение с кнопками
-        user: Пользователь, отправивший заявку
+        user: Пользователь, оставивший заявку
+        
+    Returns:
+        None
     """
     channel = message.channel
-    # Определяем тип контента на основе названия канала
-    if "жалоба" in channel.name:
+    
+    # Определяем тип содержимого на основе имени канала
+    channel_name = channel.name.lower()
+    if "жалоба" in channel_name:
         content_type = "жалоба"
-        log_channel = REPORT_LOG_CHANNEL
-    elif "предложение" in channel.name:
+        status = "одобрена"
+    elif "предложение" in channel_name:
         content_type = "предложение"
-        log_channel = REPORT_LOG_CHANNEL
-    elif "запрос" in channel.name:
+        status = "одобрено"
+    elif "запрос" in channel_name:
         content_type = "запрос"
-        log_channel = ORDER_LOG_CHANNEL
+        status = "одобрен"
     else:
-        content_type = "заявка"  # Значение по умолчанию
-        log_channel = REPORT_LOG_CHANNEL
+        content_type = "заявка"
+        status = "одобрена"
+    
+    # Если это запрос, пытаемся получить ID заказа
+    order_id = None
+    if content_type == "запрос" and message.embeds:
+        # Ищем ID заказа в футере первого эмбеда
+        footer_text = message.embeds[0].footer.text
+        id_match = re.search(r'ID заказа: (ORD-\d+-\d+)', footer_text)
+        if id_match:
+            order_id = id_match.group(1)
+    
+    # Если это заказ, получаем информацию о цене
+    order_price = None
+    if content_type == "запрос" and message.embeds:
+        # Ищем информацию о цене в полях эмбеда
+        for field in message.embeds[0].fields:
+            if field.name == "💰 Информация":
+                price_match = re.search(r'Стоимость: ([\d.,\- +]+)', field.value)
+                if price_match:
+                    order_price = price_match.group(1)
+                break
 
-    current_date = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
-
-    # Логируем действие в базу данных
-    db_manager.log_reaction_action(
-        message.id,
-        channel.id,
-        user.id,
-        interaction.user.id,
-        "approve",
-        None  # Нет причины для одобрения
-    )
-
-    # Отправляем сообщение в лог-канал
-    await LogManager.send_log_message(
-        bot=bot,
-        user=user,
+    # Создаем эмбед для уведомления пользователя
+    embed = EmbedBuilder.create_decision_embed(
         content_type=content_type,
-        action="одобрена",
-        message=message,
-        reason=None,
-        author=interaction.user,
-        log_channel_id=log_channel
+        is_approved=True,
+        moderator=interaction.user,
+        original_embed=message.embeds[0] if message.embeds else None
     )
-
-    await interaction.response.defer()
-
-    # Создаем эмбед для отправки пользователю
-    embed = discord.Embed(
-        title=f"{content_type.capitalize()} {'одобрен' if content_type == 'запрос' else ('одобрено' if content_type == 'предложение' else 'одобрена')}", 
-        description=f"Ваш{'' if content_type == 'запрос' else ('е' if content_type == 'предложение' else 'а')} {content_type} {'одобрен' if content_type == 'запрос' else ('одобрено' if content_type == 'предложение' else 'одобрена')} модератором {interaction.user.mention}.", 
-        color=discord.Color.green()
-    )
-
-    if message.embeds:
-        original_embed = message.embeds[0]
-        for field in original_embed.fields:
-            if field.name not in ["От кого", "Статус"]:
-                embed.add_field(name=field.name, value=field.value, inline=field.inline)
-
-    embed.set_footer(text=f"{current_date}")
 
     # Отправляем уведомление пользователю
     await NotificationManager.send_decision_notification(
         user, 
         embed
     )
+
+    # Отправляем сообщение в лог-канал, если это жалоба или запрос
+    try:
+        if content_type == "жалоба" and REPORT_LOG_CHANNEL:
+            log_channel = interaction.guild.get_channel(REPORT_LOG_CHANNEL)
+            if log_channel:
+                await LogManager.send_decision_log(
+                    channel=log_channel,
+                    content_type=content_type,
+                    status=status,
+                    color=discord.Color.green(),
+                    user=user,
+                    moderator=interaction.user,
+                    original_embed=message.embeds[0] if message.embeds else None
+                )
+        elif content_type == "запрос" and ORDER_LOG_CHANNEL:
+            log_channel = interaction.guild.get_channel(ORDER_LOG_CHANNEL)
+            if log_channel:
+                await LogManager.send_decision_log(
+                    channel=log_channel,
+                    content_type=content_type,
+                    status=status,
+                    color=discord.Color.green(),
+                    user=user,
+                    moderator=interaction.user,
+                    order_id=order_id,
+                    order_price=order_price,
+                    original_embed=message.embeds[0] if message.embeds else None
+                )
+    except Exception as e:
+        logger.error(f"Ошибка при отправке лога решения: {e}", exc_info=True)
+    
+    # Используем defer() вместо отправки сообщения
+    await interaction.response.defer()
 
     try:
         await channel.delete(reason=f"{content_type.capitalize()} одобрена модератором {interaction.user.name}")
@@ -357,14 +261,101 @@ async def handle_approve(bot, interaction, message, user):
 
 async def handle_reject(bot, interaction, message, user):
     """
-    Обработка нажатия на кнопку отклонения
-
+    Обработка нажатия на кнопку "Отклонить"
+    
     Args:
-        bot: Экземпляр бота
+        bot: Бот Discord
         interaction: Объект взаимодействия
         message: Сообщение с кнопками
-        user: Пользователь, отправивший заявку
+        user: Пользователь, оставивший заявку
+        
+    Returns:
+        None
     """
-    # Показываем модальное окно для ввода причины отклонения
-    modal = RejectionModal(bot, message, user)
-    await interaction.response.send_modal(modal) 
+    # Отправляем модальное окно для ввода причины отклонения
+    modal = RejectReasonModal(message, user)
+    await interaction.response.send_modal(modal)
+
+async def handle_reaction_button(bot, interaction):
+    """
+    Обработка нажатия на кнопку реакции
+    
+    Args:
+        bot: Экземпляр бота
+        interaction: Объект взаимодействия с кнопкой
+        
+    Returns:
+        None
+    """
+    custom_id = interaction.data.get('custom_id', '')
+    
+    # Получаем канал и сообщение, к которому привязана кнопка
+    channel = interaction.channel
+    
+    try:
+        # Ищем сообщение в текущем канале, к которому привязан view
+        async for message in channel.history(limit=100):
+            if message.author == bot.user and message.components:
+                # Проверяем, есть ли в компонентах сообщения кнопка с нужным ID
+                for row in message.components:
+                    for item in row.children:
+                        if item.custom_id == custom_id:
+                            # Нашли нужное сообщение с кнопкой
+                            break
+                    else:
+                        continue
+                    break
+                else:
+                    continue
+                break
+        else:
+            logger.warning(f"Не удалось найти сообщение с кнопкой {custom_id}")
+            await interaction.response.send_message(
+                "Не удалось найти сообщение с этой кнопкой", 
+                ephemeral=True
+            )
+            return
+    except Exception as e:
+        logger.error(f"Ошибка при поиске сообщения с кнопкой: {e}", exc_info=True)
+        await interaction.response.send_message(
+            "Произошла ошибка при обработке кнопки", 
+            ephemeral=True
+        )
+        return
+    
+    # Ищем упоминание пользователя в эмбеде
+    user = None
+    if message.embeds:
+        embed = message.embeds[0]
+        # Ищем поле "От кого" или "Заказчик"
+        for field in embed.fields:
+            if field.name in ["От кого", "👤 Заказчик"]:
+                # Извлекаем ID пользователя из упоминания
+                mention = field.value
+                user_id_match = re.search(r'<@(\d+)>', mention)
+                if user_id_match:
+                    user_id = int(user_id_match.group(1))
+                    try:
+                        user = await bot.fetch_user(user_id)
+                        break
+                    except:
+                        logger.warning(f"Не удалось получить пользователя с ID {user_id}")
+    
+    if not user:
+        logger.warning("Не удалось определить пользователя из эмбеда")
+        await interaction.response.send_message(
+            "Не удалось определить автора заявки", 
+            ephemeral=True
+        )
+        return
+    
+    # Обрабатываем нажатие на кнопку
+    if custom_id.startswith("approve_"):
+        await handle_approve(bot, interaction, message, user)
+    elif custom_id.startswith("reject_"):
+        await handle_reject(bot, interaction, message, user)
+    else:
+        await interaction.response.send_message(
+            "Неизвестный тип кнопки", 
+            ephemeral=True
+        ) 

@@ -1,6 +1,7 @@
 import discord
 from tools.logger import Logger
 from tools.view import FeedbackView, OrderView
+from tools.embed import EmbedBuilder
 
 logger = Logger.get_instance()
 
@@ -36,49 +37,20 @@ class MessageSender:
         if isinstance(channel, discord.TextChannel):
             await self.clear_channel(channel)
 
-        # Создаем эмбед
-        embed = discord.Embed(
-            title="Обратная связь",
-            description="Используйте кнопки ниже, чтобы отправить жалобу или предложение по улучшению сервера.",
-            color=discord.Color.blue()
-        )
-
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1339296664925503503/1368522112137957416/videoPreview.png?ex=68188709&is=68173589&hm=8316d77871c2864e6550bc158c0d8b3e8749bbc6a63322118282d47583832766&")
-
-        embed.add_field(
-            name="🚨 Жалоба", 
-            value="Нажмите кнопку 'Жалоба', чтобы сообщить о нарушении правил другим пользователем.", 
-            inline=False
-        )
-
-        embed.add_field(
-            name="💡 Предложение",
-            value="Нажмите кнопку 'Предложение', чтобы предложить улучшение или новую функцию для сервера.",
-            inline=False
-        )
+        # Создаем эмбед с помощью EmbedBuilder
+        embed = EmbedBuilder.create_feedback_embed()
 
         # Создаем view и отправляем эмбед
         view = FeedbackView(self.bot)
-        return await self.send_embed(channel, embed, view) 
+        return await self.send_embed(channel, embed, view)
 
     async def send_order_embed(self, channel: discord.abc.Messageable):
         """Отправляет эмбед с кнопкой запроса"""
         if isinstance(channel, discord.TextChannel):
             await self.clear_channel(channel)
 
-        embed = discord.Embed(
-            title="Запросы",
-            description="Используйте кнопку ниже, чтобы разместить запрос.",
-            color=discord.Color.blue()
-        )
-
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1339296664925503503/1368522112137957416/videoPreview.png?ex=68188709&is=68173589&hm=8316d77871c2864e6550bc158c0d8b3e8749bbc6a63322118282d47583832766&")
-        
-        embed.add_field(
-            name="📋 Запрос",
-            value="Нажмите кнопку 'Разместить запрос', чтобы создать заявку на выполнение миссии.",
-            inline=False
-        )
+        # Создаем эмбед с помощью EmbedBuilder
+        embed = EmbedBuilder.create_order_button_embed()
 
         view = OrderView(self.bot)
         return await self.send_embed(channel, embed, view) 

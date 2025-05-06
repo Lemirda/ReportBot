@@ -3,6 +3,7 @@ import discord
 from tools.channel_manager import ChannelManager
 from tools.logger import Logger
 from tools.notification_manager import NotificationManager
+from tools.embed import EmbedBuilder
 
 logger = Logger.get_instance()
 
@@ -47,12 +48,8 @@ class ReportModal(discord.ui.Modal, title="Отправка жалобы"):
 
             channel_manager = ChannelManager(interaction.guild)
             
-            # Создаем embed для канала
-            channel_embed = discord.Embed(title="Жалоба", color=discord.Color.red())
-            channel_embed.add_field(name="От кого", value=interaction.user.mention, inline=False)
-            channel_embed.add_field(name="На кого", value=self.target.value, inline=False)
-            channel_embed.add_field(name="Описание", value=self.description.value, inline=False)
-            channel_embed.add_field(name="Доказательства", value=self.evidence.value, inline=False)
+            # Создаем embed для канала с помощью EmbedBuilder
+            channel_embed = EmbedBuilder.create_report_embed(interaction.user, report_data)
             
             channel = await channel_manager.create_report_channel(interaction.user, report_data, channel_embed)
 

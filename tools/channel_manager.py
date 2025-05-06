@@ -85,18 +85,18 @@ class ChannelManager:
                 logger.error(f"Категория для '{channel_type}' с ID {category_id} не найдена")
                 return None
 
+            # Формируем имя канала из типа канала и имени пользователя
             channel_name = f"{channel_type}-{user.name.lower()}"
             channel_name = ''.join(c for c in channel_name if c.isalnum() or c == '-')
 
             if len(channel_name) > 100:
                 channel_name = channel_name[:90]
 
+            # Получаем роли с доступом к каналу
             access_roles = []
-
             for role_id in role_ids:
                 try:
                     role = self.guild.get_role(int(role_id))
-
                     if role:
                         access_roles.append(role)
                 except ValueError:
@@ -112,6 +112,7 @@ class ChannelManager:
             for role in access_roles:
                 overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
+            # Создаем канал
             channel = await self.guild.create_text_channel(
                 name=channel_name,
                 category=category,
@@ -120,22 +121,17 @@ class ChannelManager:
 
             logger.info(f"Создан канал для '{channel_type}': {channel.name} (ID: {channel.id})")
 
+            # Получаем упоминания ролей для отправки сообщения
             role_mentions = self.get_role_mentions(role_ids)
 
-            # Создаем представление с кнопками
-            reaction_view = ReactionView(None, user, channel_type)
-
             # Отправляем сообщение с эмбедом и кнопками
-            message = await channel.send(content=role_mentions, embed=embed, view=reaction_view)
+            message = await channel.send(content=role_mentions, embed=embed)
+            
+            # Создаем представление с кнопками и добавляем к сообщению
+            reaction_view = ReactionView(message, user)
+            await message.edit(view=reaction_view)
+            
             logger.info(f"Отправлено сообщение с '{channel_type}' в канал {channel.name}")
-
-            db_manager.add_reaction_buttons(
-                message.id,
-                channel.id,
-                channel_type,
-                reaction_view.approve_id,
-                reaction_view.reject_id
-            )
 
             return channel
 
@@ -144,43 +140,13 @@ class ChannelManager:
             return None
 
     async def create_report_channel(self, user: discord.User, report_data: dict, embed: discord.Embed):
-        """
-        Создание канала для жалобы
-
-        Args:
-            user: Пользователь, отправивший жалобу
-            report_data: Данные жалобы (словарь с полями)
-            embed: Готовый embed для отправки
-
-        Returns:
-            Созданный канал или None, если не удалось создать
-        """
+        """Создание канала для жалобы"""
         return await self.create_channel("жалоба", user, report_data, embed)
 
     async def create_suggestion_channel(self, user: discord.User, suggestion_data: dict, embed: discord.Embed):
-        """
-        Создание канала для предложения
-
-        Args:
-            user: Пользователь, отправивший предложение
-            suggestion_data: Данные предложения (словарь с полями)
-            embed: Готовый embed для отправки
-
-        Returns:
-            Созданный канал или None, если не удалось создать
-        """
+        """Создание канала для предложения"""
         return await self.create_channel("предложение", user, suggestion_data, embed)
 
     async def create_order_channel(self, user: discord.User, order_data: dict, embed: discord.Embed):
-        """
-        Создание канала для запроса
-
-        Args:
-            user: Пользователь, отправивший запрос
-            order_data: Данные запроса (словарь с полями)
-            embed: Готовый embed для отправки
-
-        Returns:
-            Созданный канал или None, если не удалось создать
-        """
+        """Создание канала для запроса"""
         return await self.create_channel("запрос", user, order_data, embed)
