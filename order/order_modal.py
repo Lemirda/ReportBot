@@ -123,28 +123,93 @@ class OrderModal(discord.ui.Modal):
             
             # Создаем embed для отправки в канал ордеров
             order_embed = discord.Embed(
-                title=f"Ордер: {self.order_type_label}", 
-                color=discord.Color.blue()
+                title=f":identification_card: Ордер: {self.order_type_label}", 
+                color=0x3498db  # Яркий синий цвет
             )
-            order_embed.add_field(name="От кого", value=interaction.user.mention, inline=False)
             
-            order_embed.add_field(name="Игровые статики", value=self.game_statics.value, inline=False)
+            # Добавляем текущую дату и время
+            from datetime import datetime
+            current_time = datetime.now().strftime("%d.%m.%Y %H:%M")
             
+            # Поле информации о заказчике
             order_embed.add_field(
-                name="Найденные пользователи", 
-                value="\n".join(users_list), 
+                name="👤 Заказчик",
+                value=f"{interaction.user.mention}\nID: `{interaction.user.id}`",
                 inline=False
             )
             
-            # Добавляем тип ордера
-            order_embed.add_field(name="Тип ордера", value=self.order_type_label, inline=False)
+            # Поле с типом и ценой
+            order_embed.add_field(
+                name="💰 Информация",
+                value=f"**Тип:** {self.order_type_label}\n**Стоимость:** {self.get_order_price(self.order_type_value)}",
+                inline=False
+            )
             
-            # Добавляем сумму
-            order_price = self.get_order_price(self.order_type_value)
-            order_embed.add_field(name="Сумма", value=order_price, inline=False)
+            # Поле с игровыми статиками, форматируем по-красивее
+            formatted_statics = self.game_statics.value.replace("\n", " • ")
+            order_embed.add_field(
+                name="🎮 Игровые статики",
+                value=f"```{formatted_statics}```",
+                inline=False
+            )
             
-            # Добавляем доказательства
-            order_embed.add_field(name="Доказательства", value=self.evidence.value if self.evidence.value else "Не предоставлены", inline=False)
+            # Добавляем найденных пользователей с эмодзи
+            formatted_users = []
+            has_found = False
+            has_not_found = False
+            
+            for static, member in found_users.items():
+                if member:
+                    has_found = True
+                    formatted_users.append(f"✅ `{static}` → {member.mention}")
+                else:
+                    has_not_found = True
+                    formatted_users.append(f"❓ `{static}` → Пользователь не найден")
+            
+            # Если нет статиков, добавляем сообщение об этом
+            if not formatted_users:
+                users_value = "```Игровые статики не найдены```"
+            else:
+                # Группируем статики - сначала найденные, потом не найденные
+                found_users_list = [u for u in formatted_users if "✅" in u]
+                not_found_users_list = [u for u in formatted_users if "❓" in u]
+                
+                # Добавляем заголовки к каждой группе
+                result_parts = []
+                
+                if found_users_list:
+                    result_parts.append("**Найдены:**")
+                    result_parts.extend(found_users_list)
+                
+                if not_found_users_list:
+                    if found_users_list:  # Добавляем разделитель, если есть обе группы
+                        result_parts.append("\n**Не найдены:**")
+                    else:
+                        result_parts.append("**Не найдены:**")
+                    result_parts.extend(not_found_users_list)
+                
+                users_value = "\n".join(result_parts)
+            
+            order_embed.add_field(
+                name="🔍 Пользователи по статикам",
+                value=users_value,
+                inline=False
+            )
+            
+            # Доказательства с форматированием
+            order_embed.add_field(
+                name="📷 Доказательства",
+                value=f"```{self.evidence.value}```",
+                inline=False
+            )
+            
+            # Устанавливаем футер с ID заказа и временем
+            order_id = f"ORD-{interaction.user.id}-{int(datetime.now().timestamp())}"
+            order_embed.set_footer(text=f"ID заказа: {order_id} • {current_time}")
+            
+            # Добавляем уменьшенный аватар пользователя
+            if interaction.user.avatar:
+                order_embed.set_thumbnail(url=interaction.user.avatar.url)
             
             # Создаем канал для ордера если есть категория
             if ORDERS_CATEGORY:
