@@ -1,7 +1,6 @@
 import os
 import uuid
 import discord
-import datetime
 import re
 
 from dotenv import load_dotenv
@@ -86,9 +85,6 @@ class RejectReasonModal(discord.ui.Modal, title="Причина отклонен
         else:
             content_type = "заявка"
             status = "отклонена"
-        
-        # Получаем текущую дату
-        current_date = datetime.datetime.now().strftime("%d.%m.%Y")
         
         # Создаем эмбед для уведомления пользователя
         embed = EmbedBuilder.create_decision_embed(

@@ -11,6 +11,7 @@ from tools.order_utils import OrderUtils
 load_dotenv()
 
 logger = Logger.get_instance()
+
 ORDERS_CATEGORY = int(os.getenv('ORDERS_CATEGORY', 0))
 ORDER_CHANNEL = int(os.getenv('ORDER_CHANNEL', 0))
 ORDER_LOG_CHANNEL = int(os.getenv('ORDER_LOG_CHANNEL', 0))

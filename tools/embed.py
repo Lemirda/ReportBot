@@ -87,7 +87,7 @@ class EmbedBuilder:
             color=discord.Color.blue()
         )
 
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1339296664925503503/1368522112137957416/videoPreview.png?ex=68188709&is=68173589&hm=8316d77871c2864e6550bc158c0d8b3e8749bbc6a63322118282d47583832766&")
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1368531461929701546/1369951883141189782/Grand_Theft_Auto_V_Screenshot_2025.png?ex=681dba9d&is=681c691d&hm=7dde680c13aba25844026d45cc0049f2c81eac69a5334a0f403c12d0de39fcec&")
 
         embed.add_field(
             name="🚨 Жалоба", 
@@ -112,7 +112,7 @@ class EmbedBuilder:
             color=discord.Color.blue()
         )
 
-        embed.set_image(url="https://cdn.discordapp.com/attachments/1339296664925503503/1368522112137957416/videoPreview.png?ex=68188709&is=68173589&hm=8316d77871c2864e6550bc158c0d8b3e8749bbc6a63322118282d47583832766&")
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1368531461929701546/1369951883141189782/Grand_Theft_Auto_V_Screenshot_2025.png?ex=681dba9d&is=681c691d&hm=7dde680c13aba25844026d45cc0049f2c81eac69a5334a0f403c12d0de39fcec&")
         
         embed.add_field(
             name="📋 Запрос",
@@ -138,7 +138,7 @@ class EmbedBuilder:
         
         embed = discord.Embed(
             title=f"{content_type.capitalize()} {status}",
-            description=f"Ваш{pronoun} {content_type} {status} модератором {moderator.mention}.",
+            description=f"Ваш{pronoun} {content_type} был{pronoun} {status}.\nМодератор: {moderator.mention}",
             color=color
         )
         
