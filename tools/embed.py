@@ -45,10 +45,13 @@ class EmbedBuilder:
             inline=False
         )
         
+        # Получаем пользовательскую сумму, если она указана
+        custom_amount = order_data.get('amount')
+        
         # Поле с типом и ценой
         embed.add_field(
             name="💰 Информация",
-            value=f"**Тип:** {order_type_label}\n**Стоимость:** {OrderUtils.get_order_price(order_type_value)}",
+            value=f"**Тип:** {order_type_label}\n**Стоимость:** {OrderUtils.get_order_price(order_type_value, custom_amount)}",
             inline=False
         )
         

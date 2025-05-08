@@ -96,16 +96,22 @@ class OrderUtils:
         return f"ORD-{user_id}-{timestamp}"
     
     @staticmethod
-    def get_order_price(order_type_value):
+    def get_order_price(order_type_value, custom_amount=None):
         """
         Возвращает сумму за запрос в зависимости от его типа
         
         Args:
             order_type_value: Тип заказа
+            custom_amount: Пользовательская сумма (для некоторых типов заказов)
             
         Returns:
             Строка с ценой
         """
+        # Проверяем, нужна ли пользовательская сумма для этого типа заказа
+        custom_amount_types = ['car_repair', 'family_purchase', 'car_purchase']
+        if order_type_value in custom_amount_types:
+            return custom_amount if custom_amount else "Указывается пользователем"
+            
         prices = {
             "conspiracy_2": "150.000-190.000",
             "conspiracy_2_activated": "150.000-190.000 + 15.000",

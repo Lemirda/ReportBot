@@ -60,6 +60,21 @@ class OrderTypeSelect(discord.ui.Select):
                 label="Гровер I с активацией контракта",
                 value="grover_1_activated",
                 emoji="🌿"
+            ),
+            discord.SelectOption(
+                label="Ремонт авто",
+                value="car_repair",
+                emoji="🔧"
+            ),
+            discord.SelectOption(
+                label="Закуп для семьи",
+                value="family_purchase",
+                emoji="🛒"
+            ),
+            discord.SelectOption(
+                label="Выкуп авто",
+                value="car_purchase",
+                emoji="🚗"
             )
         ]
         

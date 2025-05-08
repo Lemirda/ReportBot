@@ -30,6 +30,9 @@ class OrderModal(discord.ui.Modal):
         super().__init__(title=f"Запрос: {order_type_label}")
         self.order_type_label = order_type_label
         self.order_type_value = order_type_value
+        
+        # Определяем, нужно ли поле для ввода суммы
+        self.needs_custom_amount = order_type_value in ['car_repair', 'family_purchase', 'car_purchase']
 
         self.game_statics = discord.ui.TextInput(
             label="Игровые статики",
@@ -38,6 +41,16 @@ class OrderModal(discord.ui.Modal):
             style=discord.TextStyle.short,
             max_length=1000
         )
+        
+        # Добавляем поле для ввода суммы, если это один из специальных типов заказов
+        if self.needs_custom_amount:
+            self.amount = discord.ui.TextInput(
+                label="Сумма",
+                placeholder="Укажите требуемую сумму...",
+                required=True,
+                style=discord.TextStyle.short,
+                max_length=100
+            )
 
         self.evidence = discord.ui.TextInput(
             label="Доказательства",
@@ -48,6 +61,9 @@ class OrderModal(discord.ui.Modal):
         )
         
         self.add_item(self.game_statics)
+        # Добавляем поле суммы, если необходимо
+        if self.needs_custom_amount:
+            self.add_item(self.amount)
         self.add_item(self.evidence)
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -62,6 +78,10 @@ class OrderModal(discord.ui.Modal):
                 'game_statics': self.game_statics.value,
                 'evidence': self.evidence.value
             }
+            
+            # Добавляем сумму, если это специальный тип заказа
+            if self.needs_custom_amount:
+                order_data['amount'] = self.amount.value
 
             logger.info(f"Получен новый запрос от {interaction.user.name} ({interaction.user.id}): {self.order_type_label}")
 
