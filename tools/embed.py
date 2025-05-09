@@ -193,7 +193,7 @@ class EmbedBuilder:
 
         embed.add_field(
             name="⏱️ Время",
-            value=f"С <t:{start_timestamp}:t> до <t:{end_timestamp}:t>",
+            value=f"С <t:{start_timestamp}:t> до <t:{end_timestamp}:f>",
             inline=False
         )
 
