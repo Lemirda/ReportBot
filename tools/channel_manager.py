@@ -13,18 +13,18 @@ db_manager = DatabaseManager.get_instance()
 class ChannelManager:
     """Класс для управления каналами с жалобами, предложениями и запросами"""
 
-    def __init__(self, guild: discord.Guild):
+    def __init__(self, guild=None):
+        # Инициализация с ID категорий и ролей
         self.guild = guild
-
-        load_dotenv()
-
         self.reports_category_id = int(os.getenv('REPORTS_CATEGORY'))
         self.suggestions_category_id = int(os.getenv('SUGGESTIONS_CATEGORY'))
-        self.orders_category_id = int(os.getenv('ORDERS_CATEGORY', 0))
-
-        self.report_role_ids = [role_id.strip() for role_id in os.getenv('REPORT_PING_ROLES', '').split(',') if role_id.strip()]
-        self.suggestion_role_ids = [role_id.strip() for role_id in os.getenv('SUGGESTION_PING_ROLES', '').split(',') if role_id.strip()]
-        self.order_role_ids = [role_id.strip() for role_id in os.getenv('ORDER_PING_ROLES', '').split(',') if role_id.strip()]
+        self.orders_category_id = int(os.getenv('ORDERS_CATEGORY'))
+        self.promotion_category_id = int(os.getenv('PROMOTION_CATEGORY'))
+        
+        self.report_role_ids = [int(role_id) for role_id in os.getenv('REPORT_PING_ROLES', '').split(',') if role_id]
+        self.suggestion_role_ids = [int(role_id) for role_id in os.getenv('SUGGESTION_PING_ROLES', '').split(',') if role_id]
+        self.order_role_ids = [int(role_id) for role_id in os.getenv('ORDER_PING_ROLES', '').split(',') if role_id]
+        self.promotion_role_ids = [int(role_id) for role_id in os.getenv('PROMOTION_PING_ROLES', '').split(',') if role_id]
 
     def get_role_mentions(self, role_ids):
         """
@@ -75,6 +75,9 @@ class ChannelManager:
             elif channel_type == "запрос":
                 category_id = self.orders_category_id
                 role_ids = self.order_role_ids
+            elif channel_type == "повышение":
+                category_id = self.promotion_category_id
+                role_ids = self.promotion_role_ids
             else:
                 logger.error(f"Неизвестный тип канала: {channel_type}")
                 return None
@@ -150,3 +153,7 @@ class ChannelManager:
     async def create_order_channel(self, user: discord.User, order_data: dict, embed: discord.Embed):
         """Создание канала для запроса"""
         return await self.create_channel("запрос", user, order_data, embed)
+
+    async def create_promotion_channel(self, user: discord.User, promotion_data: dict, embed: discord.Embed):
+        """Создание канала для заявки на повышение"""
+        return await self.create_channel("повышение", user, promotion_data, embed)

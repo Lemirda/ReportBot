@@ -12,9 +12,9 @@ load_dotenv()
 
 logger = Logger.get_instance()
 
-ORDERS_CATEGORY = int(os.getenv('ORDERS_CATEGORY', 0))
-ORDER_CHANNEL = int(os.getenv('ORDER_CHANNEL', 0))
-ORDER_LOG_CHANNEL = int(os.getenv('ORDER_LOG_CHANNEL', 0))
+ORDERS_CATEGORY = int(os.getenv('ORDERS_CATEGORY'))
+ORDER_CHANNEL = int(os.getenv('ORDER_CHANNEL'))
+ORDER_LOG_CHANNEL = int(os.getenv('ORDER_LOG_CHANNEL'))
 
 class OrderModal(discord.ui.Modal):
     """Модальное окно для создания запроса"""
@@ -30,7 +30,7 @@ class OrderModal(discord.ui.Modal):
         super().__init__(title=f"Запрос: {order_type_label}")
         self.order_type_label = order_type_label
         self.order_type_value = order_type_value
-        
+
         # Определяем, нужно ли поле для ввода суммы
         self.needs_custom_amount = order_type_value in ['car_repair', 'family_purchase', 'car_purchase']
 
@@ -41,7 +41,7 @@ class OrderModal(discord.ui.Modal):
             style=discord.TextStyle.short,
             max_length=1000
         )
-        
+
         # Добавляем поле для ввода суммы, если это один из специальных типов заказов
         if self.needs_custom_amount:
             self.amount = discord.ui.TextInput(
@@ -59,26 +59,27 @@ class OrderModal(discord.ui.Modal):
             style=discord.TextStyle.short,
             max_length=1000
         )
-        
+
         self.add_item(self.game_statics)
+
         # Добавляем поле суммы, если необходимо
         if self.needs_custom_amount:
             self.add_item(self.amount)
+
         self.add_item(self.evidence)
 
     async def on_submit(self, interaction: discord.Interaction):
         """Обработка отправки формы"""
         try:
-            # Сначала подтверждаем получение формы
             await interaction.response.defer(ephemeral=True)
-            
+
             order_data = {
                 'order_type': self.order_type_label,
                 'order_type_value': self.order_type_value,
                 'game_statics': self.game_statics.value,
                 'evidence': self.evidence.value
             }
-            
+
             # Добавляем сумму, если это специальный тип заказа
             if self.needs_custom_amount:
                 order_data['amount'] = self.amount.value
@@ -88,18 +89,18 @@ class OrderModal(discord.ui.Modal):
             # Извлекаем все статики из текста и ищем пользователей
             statics = OrderUtils.extract_statics(self.game_statics.value)
             found_users = OrderUtils.find_users(statics, interaction.guild)
-            
+
             # Форматируем список пользователей для отображения
             default_value = f"❓ `{self.game_statics.value}` → Пользователь не найден"
             users_value = OrderUtils.format_users_list(found_users, default_value)
-            
+
             # Создаем embed с помощью EmbedBuilder
             order_embed = EmbedBuilder.create_order_embed(
                 user=interaction.user,
                 order_data=order_data,
                 users_value=users_value
             )
-            
+
             # Создаем канал для запроса если есть категория
             if ORDERS_CATEGORY:
                 channel_manager = ChannelManager(interaction.guild)

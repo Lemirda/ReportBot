@@ -16,6 +16,9 @@ load_dotenv()
 TOKEN = os.getenv('TOKEN')
 MAIN_CHANNEL_ID = int(os.getenv('MAIN_CHANNEL'))
 ORDER_CHANNEL = int(os.getenv('ORDER_CHANNEL'))
+AFK_CHANNEL = int(os.getenv('AFK_CHANNEL'))
+AFK_LOG_CHANNEL = int(os.getenv('AFK_LOG_CHANNEL'))
+PROMOTION_CHANNEL = int(os.getenv('PROMOTION_CHANNEL'))
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -47,10 +50,14 @@ async def on_ready():
 
         channel_report = bot.get_channel(MAIN_CHANNEL_ID)
         channel_order = bot.get_channel(ORDER_CHANNEL)
+        channel_afk = bot.get_channel(AFK_CHANNEL)
+        channel_promotion = bot.get_channel(PROMOTION_CHANNEL)
 
         message_sender = MessageSender(bot)
         await message_sender.send_report_embed(channel_report)
         await message_sender.send_order_embed(channel_order)
+        await message_sender.send_afk_embed(channel_afk)
+        await message_sender.send_promotion_embed(channel_promotion)
 
     except Exception as e:
         logger.error(f"Ошибка при отправке сообщения: {e}", exc_info=True)

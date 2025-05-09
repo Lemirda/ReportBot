@@ -39,7 +39,10 @@ class LogManager:
         )
         
         # Информация о пользователе и модераторе
-        embed.add_field(name="От пользователя", value=f"{user.mention} ({user.name})", inline=False)
+        # Для повышения не добавляем "От пользователя", так как это дублирует информацию в поле пользователя
+        if content_type != "повышение":
+            embed.add_field(name="От пользователя", value=f"{user.mention} ({user.name})", inline=False)
+            
         embed.add_field(name=f"Модератор", value=f"{moderator.mention} ({moderator.name})", inline=False)
         
         # Информация о заказе (если это запрос)

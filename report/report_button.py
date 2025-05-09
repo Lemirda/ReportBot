@@ -8,8 +8,7 @@ class ReportButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
             label="Жалоба", 
-            style=discord.ButtonStyle.danger,
-            custom_id="report_button"
+            style=discord.ButtonStyle.danger
         )
 
     async def callback(self, interaction: discord.Interaction):

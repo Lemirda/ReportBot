@@ -1,6 +1,6 @@
 import discord
 from tools.logger import Logger
-from tools.view import FeedbackView, OrderView
+from tools.view import FeedbackView, OrderView, AfkView, PromotionView
 from tools.embed import EmbedBuilder
 
 logger = Logger.get_instance()
@@ -53,4 +53,25 @@ class MessageSender:
         embed = EmbedBuilder.create_order_button_embed()
 
         view = OrderView(self.bot)
+        return await self.send_embed(channel, embed, view)
+
+    async def send_afk_embed(self, channel: discord.abc.Messageable):
+        """Отправляет эмбед с кнопкой отметки АФК"""
+        if isinstance(channel, discord.TextChannel):
+            await self.clear_channel(channel)
+
+        embed = EmbedBuilder.create_afk_button_embed()
+
+        view = AfkView()
+        return await self.send_embed(channel, embed, view)
+
+    async def send_promotion_embed(self, channel: discord.abc.Messageable):
+        """Отправляет эмбед с кнопкой повышения"""
+        if isinstance(channel, discord.TextChannel):
+            await self.clear_channel(channel)
+
+        # Создаем эмбед для повышения
+        embed = EmbedBuilder.create_promotion_button_embed()
+
+        view = PromotionView(self.bot)
         return await self.send_embed(channel, embed, view) 

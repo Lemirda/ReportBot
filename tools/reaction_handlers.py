@@ -82,6 +82,9 @@ class RejectReasonModal(discord.ui.Modal, title="Причина отклонен
         elif "запрос" in channel_name:
             content_type = "запрос"
             status = "отклонен"
+        elif "повышение" in channel_name:
+            content_type = "повышение"
+            status = "отклонено"
         else:
             content_type = "заявка"
             status = "отклонена"
@@ -118,6 +121,20 @@ class RejectReasonModal(discord.ui.Modal, title="Причина отклонен
                     )
             elif content_type == "запрос" and ORDER_LOG_CHANNEL:
                 log_channel = interaction.guild.get_channel(ORDER_LOG_CHANNEL)
+                if log_channel:
+                    await LogManager.send_decision_log(
+                        channel=log_channel,
+                        content_type=content_type,
+                        status=status,
+                        color=discord.Color.red(),
+                        user=self.user,
+                        moderator=interaction.user,
+                        reason=self.reason.value,
+                        original_embed=self.message.embeds[0] if self.message.embeds else None
+                    )
+            elif content_type == "повышение" and os.getenv('PROMOTION_LOG_CHANNEL'):
+                promotion_log_channel_id = int(os.getenv('PROMOTION_LOG_CHANNEL'))
+                log_channel = interaction.guild.get_channel(promotion_log_channel_id)
                 if log_channel:
                     await LogManager.send_decision_log(
                         channel=log_channel,
@@ -172,6 +189,9 @@ async def handle_approve(bot, interaction, message, user):
     elif "запрос" in channel_name:
         content_type = "запрос"
         status = "одобрен"
+    elif "повышение" in channel_name:
+        content_type = "повышение"
+        status = "одобрено"
     else:
         content_type = "заявка"
         status = "одобрена"
@@ -195,6 +215,53 @@ async def handle_approve(bot, interaction, message, user):
                 if price_match:
                     order_price = price_match.group(1)
                 break
+                
+    # Если это повышение, выдаем роль следующего ранга
+    if content_type == "повышение" and message.embeds:
+        try:
+            next_rank = None
+            # Получаем информацию о повышении из первого поля эмбеда
+            if message.embeds[0].fields:
+                user_field = message.embeds[0].fields[0]
+                if user_field.name == "👤 Пользователь":
+                    rank_match = re.search(r'с (\d+) ранга на (\d+) ранг', user_field.value)
+                    if rank_match:
+                        current_rank = int(rank_match.group(1))
+                        next_rank = int(rank_match.group(2))
+                        
+            if next_rank:
+                # Получаем ID роли для нового ранга
+                rank_role_id = int(os.getenv(f'RANK_{next_rank}', 0))
+                
+                if rank_role_id:
+                    # Получаем объект роли
+                    rank_role = interaction.guild.get_role(rank_role_id)
+                    
+                    if rank_role:
+                        # Находим участника на сервере
+                        member = interaction.guild.get_member(user.id)
+                        
+                        if member:
+                            # Выдаем роль
+                            await member.add_roles(rank_role)
+                            logger.info(f"Роль {rank_role.name} успешно выдана пользователю {user.name} при повышении с {current_rank} до {next_rank} ранга")
+                            
+                            # Удаляем предыдущую роль ранга, если она есть
+                            if current_rank > 0:
+                                prev_rank_role_id = int(os.getenv(f'RANK_{current_rank}', 0))
+                                if prev_rank_role_id:
+                                    prev_rank_role = interaction.guild.get_role(prev_rank_role_id)
+                                    if prev_rank_role and prev_rank_role in member.roles:
+                                        await member.remove_roles(prev_rank_role)
+                                        logger.info(f"Роль {prev_rank_role.name} успешно удалена у пользователя {user.name} при повышении")
+                        else:
+                            logger.warning(f"Не удалось найти участника {user.name} на сервере для выдачи роли")
+                    else:
+                        logger.warning(f"Не удалось найти роль с ID {rank_role_id} для ранга {next_rank}")
+                else:
+                    logger.warning(f"ID роли для ранга {next_rank} не найден в переменных окружения")
+        except Exception as e:
+            logger.error(f"Ошибка при выдаче роли для повышения: {e}", exc_info=True)
 
     # Создаем эмбед для уведомления пользователя
     embed = EmbedBuilder.create_decision_embed(
@@ -210,7 +277,7 @@ async def handle_approve(bot, interaction, message, user):
         embed
     )
 
-    # Отправляем сообщение в лог-канал, если это жалоба или запрос
+    # Отправляем сообщение в лог-канал, если это жалоба, запрос или повышение
     try:
         if content_type == "жалоба" and REPORT_LOG_CHANNEL:
             log_channel = interaction.guild.get_channel(REPORT_LOG_CHANNEL)
@@ -238,12 +305,25 @@ async def handle_approve(bot, interaction, message, user):
                     order_price=order_price,
                     original_embed=message.embeds[0] if message.embeds else None
                 )
+        elif content_type == "повышение" and os.getenv('PROMOTION_LOG_CHANNEL'):
+            promotion_log_channel_id = int(os.getenv('PROMOTION_LOG_CHANNEL'))
+            log_channel = interaction.guild.get_channel(promotion_log_channel_id)
+            if log_channel:
+                await LogManager.send_decision_log(
+                    channel=log_channel,
+                    content_type=content_type,
+                    status=status,
+                    color=discord.Color.green(),
+                    user=user,
+                    moderator=interaction.user,
+                    original_embed=message.embeds[0] if message.embeds else None
+                )
     except Exception as e:
         logger.error(f"Ошибка при отправке лога решения: {e}", exc_info=True)
     
     # Используем defer() вместо отправки сообщения
     await interaction.response.defer()
-
+    
     try:
         await channel.delete(reason=f"{content_type.capitalize()} одобрена модератором {interaction.user.name}")
         logger.info(f"Канал {channel.name} удален после одобрения {content_type}")
@@ -325,7 +405,7 @@ async def handle_reaction_button(bot, interaction):
         embed = message.embeds[0]
         # Ищем поле "От кого" или "Заказчик"
         for field in embed.fields:
-            if field.name in ["От кого", "👤 Заказчик"]:
+            if field.name in ["От кого", "👤 Заказчик", "👤 Пользователь"]:
                 # Извлекаем ID пользователя из упоминания
                 mention = field.value
                 user_id_match = re.search(r'<@(\d+)>', mention)

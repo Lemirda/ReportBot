@@ -8,8 +8,7 @@ class OrderButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
             label="Разместить запрос", 
-            style=discord.ButtonStyle.primary,
-            custom_id="order_button"
+            style=discord.ButtonStyle.primary
         )
 
     async def callback(self, interaction: discord.Interaction):
