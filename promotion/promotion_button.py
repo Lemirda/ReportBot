@@ -47,17 +47,16 @@ class PromotionButton(discord.ui.Button):
                 next_rank = 2
             else:
                 current_rank = 0
-                next_rank = 1
-            
-            # Если у пользователя 5 ранг, сообщаем что дальше в индивидуальном порядке
-            if current_rank == 5:
+                next_rank = 0
+
+            # Если у пользователя нет ролей с 1 по 5 или у него 5 ранг
+            if current_rank == 0 or current_rank == 5:
                 await interaction.response.send_message(
-                    "У вас уже максимальный ранг. Дальнейшее продвижение возможно только в индивидуальном порядке.",
+                    "Дальнейшее продвижение возможно только в индивидуальном порядке. Обратитесь к рангам выше.",
                     ephemeral=True
                 )
                 return
-            
-            # Открываем модальное окно для заполнения заявки
+
             await interaction.response.send_modal(PromotionModal(current_rank, next_rank))
             
         except Exception as e:
