@@ -15,5 +15,6 @@ class OrderButton(discord.ui.Button):
         await interaction.response.send_message(
             "Выберите тип запроса:", 
             view=OrderSelect(), 
-            ephemeral=True
-        ) 
+            ephemeral=True,
+            delete_after=30
+        )

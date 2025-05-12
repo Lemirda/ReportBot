@@ -27,7 +27,7 @@ class OrderModal(discord.ui.Modal):
             order_type_label: Название типа запроса (для отображения)
             order_type_value: Значение типа запроса (для обработки)
         """
-        super().__init__(title=f"Запрос: {order_type_label}")
+        super().__init__(title=f"Запрос")
         self.order_type_label = order_type_label
         self.order_type_value = order_type_value
 
