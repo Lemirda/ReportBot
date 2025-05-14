@@ -32,6 +32,19 @@ async def on_ready():
     logger.info(f'Бот {bot.user} запущен и готов к работе!')
 
     try:
+        # Загрузка команд
+        await bot.load_extension("capt.command")
+        logger.info("Команды успешно загружены")
+
+        from capt.view import CaptView
+        bot.add_view(CaptView(None))
+
+        try:
+            synced = await bot.tree.sync()
+            logger.info(f"Синхронизировано {len(synced)} команд")
+        except Exception as e:
+            logger.error(f"Ошибка при синхронизации команд: {e}", exc_info=True)
+            
         # Синхронизация базы данных пользователей
         for guild in bot.guilds:
             user_manager = UserManager.get_instance()

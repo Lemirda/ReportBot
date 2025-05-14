@@ -1,6 +1,7 @@
 import discord
 from datetime import datetime
 from tools.order_utils import OrderUtils
+from capt.ranks import get_user_rank_name
 
 class EmbedBuilder:
     """Класс для создания всех эмбедов в приложении"""
@@ -318,4 +319,88 @@ class EmbedBuilder:
         # Добавляем текущую дату в футер
         embed.set_footer(text=f"Заявка на повышение • {datetime.now().strftime('%d.%m.%Y %H:%M')}")
         
-        return embed 
+        return embed
+    
+    @staticmethod
+    def create_capt_embed(capt_data):
+        """Создает эмбед для отображения сбора игроков
+        
+        Args:
+            capt_data: Словарь с данными о сборе
+                - name: Название сбора
+                - creator: Пользователь, создавший сбор
+                - datetime: Дата и время проведения
+                - slots: Количество слотов
+                - participants: Список участников
+                - extra_participants: Список дополнительных участников
+        """
+        embed = discord.Embed(
+            title=f"{capt_data['name']}", 
+            color=0x3498db
+        )
+        
+        # Форматируем дату и время с использованием маркеров Discord
+        unix_timestamp = convert_to_unix_timestamp(capt_data['datetime'])
+        
+        formatted_date = f"<t:{unix_timestamp}:F>"
+        relative_time = f"<t:{unix_timestamp}:R>"
+
+        # Формируем поля информации в одной строке через двоеточие
+        embed.add_field(
+            name="",
+            value=f"**Создал:** {capt_data['creator'].mention}\n**Дата:** {formatted_date} {relative_time}",
+            inline=False
+        )
+        
+        # Участники
+        slots_count = len(capt_data['participants'])
+        total_slots = capt_data['slots']
+        embed.add_field(
+            name=f"Участники ({slots_count}/{total_slots})",
+            value=format_participants_list(capt_data['participants']),
+            inline=False
+        )
+        
+        # Если есть дополнительные участники, добавляем их
+        if capt_data['extra_participants']:
+            embed.add_field(
+                name=f"Дополнительные участники ({len(capt_data['extra_participants'])})",
+                value=format_participants_list(capt_data['extra_participants']),
+                inline=False
+            )
+            
+        return embed
+
+def format_participants_list(participants):
+    """Форматирует список участников"""
+    if not participants:
+        return "Список пуст"
+        
+    participants_text = ""
+    for i, participant in enumerate(participants, 1):
+        # Получаем название ранга
+        rank_name = get_user_rank_name(participant)
+        participants_text += f"{i}. {participant.mention} - {rank_name}\n"
+    
+    return participants_text
+
+def convert_to_unix_timestamp(date_string):
+    """Конвертирует строку даты в Unix timestamp для маркеров Discord
+    
+    Args:
+        date_string: Строка даты и времени (например, "20.05.2023 20:00")
+        
+    Returns:
+        Unix timestamp в секундах
+    """
+    try:
+        # Парсим дату из строки
+        dt = datetime.strptime(date_string, "%d.%m.%Y %H:%M")
+        
+        # Преобразуем в Unix timestamp (секунды с 1970-01-01)
+        unix_timestamp = int(dt.timestamp())
+        
+        return unix_timestamp
+    except Exception as e:
+        # В случае ошибки возвращаем текущее время
+        return int(datetime.now().timestamp()) 
