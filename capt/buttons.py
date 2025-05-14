@@ -1,7 +1,7 @@
 import discord
 from tools.logger import Logger
 from tools.embed import EmbedBuilder
-from capt.ranks import get_user_rank, get_lowest_rank_user, sort_participants_by_rank, can_manage_capt
+from capt.ranks import get_user_rank, get_lowest_rank_user, sort_participants_by_rank, can_manage_capt, get_highest_rank_from_extra
 from database.capt import get_instance as get_capt_db
 
 logger = Logger.get_instance()
@@ -54,8 +54,9 @@ class JoinButton(discord.ui.Button):
                 # Список заполнен, проверяем возможность замены
                 lowest_rank_user = get_lowest_rank_user(capt_data['participants'])
                 lowest_rank = get_user_rank(lowest_rank_user)
-
-                if user_rank < lowest_rank:  # Меньшее значение ранга = более высокий ранг
+                
+                # Если ранг пользователя выше (меньшее число), чем у участника с самым низким рангом
+                if user_rank < lowest_rank:
                     # Перемещаем участника с низшим рангом в доп. список
                     capt_data['participants'].remove(lowest_rank_user)
                     capt_data['extra_participants'].append(lowest_rank_user)
@@ -142,17 +143,10 @@ class JoinExtraButton(discord.ui.Button):
 
                 # Если есть люди в доп. списке, перемещаем лучшего в основной
                 if len(capt_data['participants']) < capt_data['slots'] and len(capt_data['extra_participants']) > 1:
-                    # Нам нужно получить список без текущего пользователя
-                    extra_without_current = [p for p in capt_data['extra_participants'] 
-                                           if p.id != interaction.user.id]
-
-                    if extra_without_current:
-                        from capt.ranks import sort_participants_by_rank
-
-                        # Сортируем и берем участника с высшим рангом
-                        sorted_extra = sort_participants_by_rank(extra_without_current)
-                        best_extra = sorted_extra[0]
-
+                    # Получаем участника с наивысшим рангом, исключая текущего пользователя
+                    best_extra = get_highest_rank_from_extra(capt_data['extra_participants'], user_id)
+                    
+                    if best_extra:
                         # Перемещаем его в основной список
                         capt_data['extra_participants'].remove(best_extra)
                         capt_data['participants'].append(best_extra)
@@ -216,18 +210,18 @@ class LeaveButton(discord.ui.Button):
                     removed_from_main = True
                     break
 
-            # Если пользователь был в основном списке и есть люди в доп. списке, перемещаем лучшего из доп. списка в основной
+            # Если пользователь был в основном списке и есть люди в доп. списке, 
+            # перемещаем лучшего из доп. списка в основной
             if removed_from_main and capt_data['extra_participants']:
-                # Сортируем доп. список по рангу
-                sorted_extra = sort_participants_by_rank(capt_data['extra_participants'])
-                # Берем участника с высшим рангом из доп. списка
-                best_extra = sorted_extra[0]
-                # Перемещаем его в основной список
-                capt_data['extra_participants'].remove(best_extra)
-                capt_data['participants'].append(best_extra)
-                # Сортируем основной список
-                capt_data['participants'] = sort_participants_by_rank(capt_data['participants'])
-
+                # Получаем участника с наивысшим рангом
+                best_extra = get_highest_rank_from_extra(capt_data['extra_participants'])
+                if best_extra:
+                    # Перемещаем его в основной список
+                    capt_data['extra_participants'].remove(best_extra)
+                    capt_data['participants'].append(best_extra)
+                    # Сортируем основной список
+                    capt_data['participants'] = sort_participants_by_rank(capt_data['participants'])
+                
                 await interaction.response.send_message(
                     f"Вы покинули основной список сбора. Участник из дополнительного списка перемещен в основной.",
                     ephemeral=True

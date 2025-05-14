@@ -96,17 +96,35 @@ def can_manage_capt(user):
 
 def get_lowest_rank_user(participants):
     """Находит участника с самым низким рангом"""
-    lowest_rank = 999
-    lowest_rank_user = None
+    if not participants:
+        return None
+        
+    # Находим участника с самым высоким значением ранга (самый низкий ранг)
+    return max(participants, key=lambda participant: get_user_rank(participant))
+
+def get_highest_rank_from_extra(extra_participants, exclude_user_id=None):
+    """
+    Находит участника с самым высоким рангом из дополнительного списка
     
-    for participant in participants:
-        rank = get_user_rank(participant)
-        if rank < lowest_rank:
-            lowest_rank = rank
-            lowest_rank_user = participant
+    Args:
+        extra_participants: Список дополнительных участников
+        exclude_user_id: ID пользователя, которого нужно исключить из поиска
+        
+    Returns:
+        Пользователь с самым высоким рангом или None, если список пуст
+    """
+    if not extra_participants:
+        return None
+        
+    # Фильтруем список, исключая указанного пользователя
+    filtered_participants = [p for p in extra_participants if exclude_user_id is None or p.id != exclude_user_id]
     
-    return lowest_rank_user
+    if not filtered_participants:
+        return None
+        
+    # Возвращаем участника с самым низким числовым значением ранга (самый высокий ранг)
+    return min(filtered_participants, key=lambda participant: get_user_rank(participant))
 
 def sort_participants_by_rank(participants):
     """Сортирует участников по рангу (от высшего к низшему)"""
-    return sorted(participants, key=lambda participant: get_user_rank(participant), reverse=True) 
+    return sorted(participants, key=lambda participant: get_user_rank(participant)) 
