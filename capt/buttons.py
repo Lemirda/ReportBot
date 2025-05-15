@@ -210,23 +210,7 @@ class LeaveButton(discord.ui.Button):
                     removed_from_main = True
                     break
 
-            # Если пользователь был в основном списке и есть люди в доп. списке, 
-            # перемещаем лучшего из доп. списка в основной
-            if removed_from_main and capt_data['extra_participants']:
-                # Получаем участника с наивысшим рангом
-                best_extra = get_highest_rank_from_extra(capt_data['extra_participants'])
-                if best_extra:
-                    # Перемещаем его в основной список
-                    capt_data['extra_participants'].remove(best_extra)
-                    capt_data['participants'].append(best_extra)
-                    # Сортируем основной список
-                    capt_data['participants'] = sort_participants_by_rank(capt_data['participants'])
-                
-                await interaction.response.send_message(
-                    f"Вы покинули основной список сбора. Участник из дополнительного списка перемещен в основной.",
-                    ephemeral=True
-                )
-            elif removed_from_main:
+            if removed_from_main:
                 await interaction.response.send_message(f"Вы покинули основной список сбора.", ephemeral=True)
             else:
                 # Ищем в дополнительном списке
