@@ -8,18 +8,17 @@ from typing import List, Dict, Any
 
 class Rank(Enum):
     """Ранги участников"""
-    COMMANDER = 1
-    CAPTAIN = 2
-    LIEUTENANT = 3
-    SERGEANT = 4
-    PRIVATE = 5
+    LEADER = 1
+    CAPTAIN_1 = 2
+    CAPTAIN_2 = 3
+    MEMBER = 4
+    NO_ROLE = 5
 
 class Action(Enum):
     """Возможные действия участников"""
     JOIN = 1
     JOIN_EXTRA = 2
     LEAVE = 3
-    WAIT = 4
 
 class Participant:
     """Класс участника сбора"""
@@ -29,7 +28,16 @@ class Participant:
         self.rank = rank
     
     def __str__(self) -> str:
-        return f"{self.name} [{self.rank.name}]"
+        if self.rank == Rank.LEADER:
+            return f"{self.name} [LEADER]"
+        elif self.rank == Rank.CAPTAIN_1:
+            return f"{self.name} [CAPTAIN 1 LVL]"
+        elif self.rank == Rank.CAPTAIN_2:
+            return f"{self.name} [CAPTAIN 2 LVL]"
+        elif self.rank == Rank.MEMBER:
+            return f"{self.name} [MEMBER]"
+        else:
+            return f"{self.name} [Нет роли]"
 
 class CaptSimulator:
     """Симулятор сбора участников"""
@@ -120,18 +128,7 @@ class CaptSimulator:
         self.extra_participants.append(participant)
         
         if was_in_main:
-            result = "Перемещен из основного списка в доп. список"
-            
-            # Если есть люди в доп. списке и освободилось место, перемещаем лучшего
-            if len(self.participants) < self.slots and len(self.extra_participants) > 1:
-                best_extra = self.get_highest_rank_from_extra()
-                
-                if best_extra and best_extra.id != participant.id:
-                    self.extra_participants.remove(best_extra)
-                    self.participants.append(best_extra)
-                    self.sort_participants()
-                    result += ". Участник с высоким рангом перемещен в основной список"
-            return result
+            return "Перемещен из основного списка в доп. список"
         return "Добавлен в доп. список"
     
     def leave(self, participant: Participant) -> str:
@@ -140,15 +137,6 @@ class CaptSimulator:
         for p in list(self.participants):
             if p.id == participant.id:
                 self.participants.remove(p)
-                
-                # Если есть люди в доп. списке, перемещаем лучшего
-                if self.extra_participants:
-                    best_extra = self.get_highest_rank_from_extra()
-                    if best_extra:
-                        self.extra_participants.remove(best_extra)
-                        self.participants.append(best_extra)
-                        self.sort_participants()
-                
                 return "Покинул основной список"
         
         # Ищем в доп. списке
@@ -251,109 +239,172 @@ class MainWindow(tk.Tk):
         # Планируем следующее обновление
         self.after(100, self.update_ui)
 
-# Класс для окна участника
-class ParticipantWindow(tk.Tk):
-    def __init__(self, simulator: CaptSimulator, participant: Participant, title_prefix="Участник"):
+# Класс для окна управления участником
+class ParticipantControlWindow(tk.Tk):
+    def __init__(self, simulator: CaptSimulator, title="Управление участником"):
         super().__init__()
         self.simulator = simulator
-        self.participant = participant
-        self.actions_log = []
-        
-        self.title(f"{title_prefix} - {participant.name}")
-        self.geometry("400x500")
+        self.title(title)
+        self.geometry("400x550")
+        self.participant = None
         
         # Основная рамка
         main_frame = tk.Frame(self)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
+        # Фрейм для информации об участнике
+        self.info_frame = tk.Frame(main_frame)
+        self.info_frame.pack(fill=tk.X, pady=(0, 20))
+        
+        # Заголовок и кнопка генерации
+        header_frame = tk.Frame(self.info_frame)
+        header_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.name_label = tk.Label(header_frame, text="Нет активного участника", font=("Arial", 14, "bold"))
+        self.name_label.pack(side=tk.LEFT)
+        
+        generate_btn = tk.Button(header_frame, text="Сгенерировать участника", command=self.generate_new_participant)
+        generate_btn.pack(side=tk.RIGHT)
+        
         # Информация об участнике
-        info_frame = tk.Frame(main_frame)
-        info_frame.pack(fill=tk.X, pady=(0, 10))
+        self.rank_label = tk.Label(self.info_frame, text="")
+        self.rank_label.pack(anchor="w")
         
-        name_label = tk.Label(info_frame, text=f"Участник: {participant.name}", font=("Arial", 14, "bold"))
-        name_label.pack(anchor="w")
+        self.id_label = tk.Label(self.info_frame, text="")
+        self.id_label.pack(anchor="w")
         
-        rank_label = tk.Label(info_frame, text=f"Ранг: {participant.rank.name}")
-        rank_label.pack(anchor="w")
+        # Статус участника
+        self.status_label = tk.Label(self.info_frame, text="Статус: не в сборе", font=("Arial", 12))
+        self.status_label.pack(anchor="w", pady=(10, 0))
         
-        id_label = tk.Label(info_frame, text=f"ID: {participant.id}")
-        id_label.pack(anchor="w")
+        # Фрейм с кнопками действий
+        actions_frame = tk.Frame(main_frame)
+        actions_frame.pack(fill=tk.X, pady=10)
+        
+        # Кнопки действий
+        self.join_btn = tk.Button(actions_frame, text="Присоединиться", 
+                                 command=lambda: self.perform_action(Action.JOIN),
+                                 width=15, height=2, bg="#90EE90")
+        self.join_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.join_extra_btn = tk.Button(actions_frame, text="В доп. список", 
+                                       command=lambda: self.perform_action(Action.JOIN_EXTRA),
+                                       width=15, height=2, bg="#ADD8E6")
+        self.join_extra_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.leave_btn = tk.Button(actions_frame, text="Покинуть", 
+                                  command=lambda: self.perform_action(Action.LEAVE),
+                                  width=15, height=2, bg="#FFA07A")
+        self.leave_btn.pack(side=tk.LEFT, padx=5)
         
         # Лог действий
-        log_label = tk.Label(main_frame, text="Действия:", font=("Arial", 12, "underline"))
-        log_label.pack(anchor="w")
+        log_label = tk.Label(main_frame, text="Лог действий:", font=("Arial", 12, "underline"))
+        log_label.pack(anchor="w", pady=(10, 0))
         
         # Текстовое поле для лога
         self.log_text = tk.Text(main_frame, height=20, width=50)
         self.log_text.pack(fill=tk.BOTH, expand=True)
         
-        # Запускаем поток для действий участника
-        self.states = {"in_main": False, "in_extra": False}
-        self.thread = threading.Thread(target=self.participant_actions)
-        self.thread.daemon = True
-        self.thread.start()
+        # Начальное состояние кнопок
+        self.update_buttons_state()
         
-        # Обновляем UI каждые 100 мс
-        self.after(100, self.update_ui)
+        # Список логов действий
+        self.actions_log = []
     
-    def update_ui(self):
-        # Обновляем лог
+    def generate_new_participant(self):
+        """Генерация нового случайного участника"""
+        self.participant = self.simulator.generate_random_participant()
+        
+        # Обновляем информацию
+        self.name_label.config(text=self.participant.name)
+        
+        role_text = ""
+        if self.participant.rank == Rank.LEADER:
+            role_text = "Роль: LEADER"
+        elif self.participant.rank == Rank.CAPTAIN_1:
+            role_text = "Роль: CAPTAIN 1 LVL"
+        elif self.participant.rank == Rank.CAPTAIN_2:
+            role_text = "Роль: CAPTAIN 2 LVL" 
+        elif self.participant.rank == Rank.MEMBER:
+            role_text = "Роль: MEMBER"
+        else:
+            role_text = "Роль: Нет роли"
+            
+        self.rank_label.config(text=role_text)
+        self.id_label.config(text=f"ID: {self.participant.id}")
+        
+        # Добавляем в лог
+        timestamp = time.strftime("%H:%M:%S")
+        log_entry = f"[{timestamp}] Сгенерирован новый участник: {self.participant.name} [{self.participant.rank.name}]"
+        self.add_to_log(log_entry)
+        
+        # Обновляем состояние кнопок
+        self.update_buttons_state()
+    
+    def perform_action(self, action: Action):
+        """Выполнить действие"""
+        if not self.participant:
+            return
+        
+        result = ""
+        
+        if action == Action.JOIN:
+            result = self.simulator.join(self.participant)
+            log_msg = f"Присоединение: {result}"
+        elif action == Action.JOIN_EXTRA:
+            result = self.simulator.join_extra(self.participant)
+            log_msg = f"Вход в доп. список: {result}"
+        elif action == Action.LEAVE:
+            result = self.simulator.leave(self.participant)
+            log_msg = f"Выход: {result}"
+        
+        # Добавляем действие в логи
+        timestamp = time.strftime("%H:%M:%S")
+        log_entry = f"[{timestamp}] {log_msg}"
+        
+        self.add_to_log(log_entry)
+        self.simulator.main_logs.append(f"[{timestamp}] {self.participant.name}: {log_msg}")
+        
+        # Обновляем состояние кнопок
+        self.update_buttons_state()
+    
+    def update_buttons_state(self):
+        """Обновление состояния кнопок в зависимости от текущего состояния участника"""
+        if not self.participant:
+            self.join_btn.config(state=tk.DISABLED)
+            self.join_extra_btn.config(state=tk.DISABLED)
+            self.leave_btn.config(state=tk.DISABLED)
+            self.status_label.config(text="Статус: нет активного участника")
+            return
+        
+        # Проверяем, где находится участник
+        in_main = any(p.id == self.participant.id for p in self.simulator.participants)
+        in_extra = any(p.id == self.participant.id for p in self.simulator.extra_participants)
+        
+        if in_main:
+            self.status_label.config(text="Статус: в основном списке")
+            self.join_btn.config(state=tk.DISABLED)
+            self.join_extra_btn.config(state=tk.NORMAL)
+            self.leave_btn.config(state=tk.NORMAL)
+        elif in_extra:
+            self.status_label.config(text="Статус: в дополнительном списке")
+            self.join_btn.config(state=tk.NORMAL)
+            self.join_extra_btn.config(state=tk.DISABLED)
+            self.leave_btn.config(state=tk.NORMAL)
+        else:
+            self.status_label.config(text="Статус: не в сборе")
+            self.join_btn.config(state=tk.NORMAL)
+            self.join_extra_btn.config(state=tk.NORMAL)
+            self.leave_btn.config(state=tk.DISABLED)
+    
+    def add_to_log(self, log_entry: str):
+        """Добавление записи в лог"""
+        self.actions_log.append(log_entry)
         self.log_text.delete(1.0, tk.END)
         for log in self.actions_log:
             self.log_text.insert(tk.END, log + "\n")
         self.log_text.see(tk.END)  # Прокрутка до конца
         
-        # Планируем следующее обновление
-        self.after(100, self.update_ui)
-    
-    def participant_actions(self):
-        """Поток для симуляции действий участника"""
-        while True:
-            # Проверяем текущее состояние участника
-            self.states["in_main"] = any(p.id == self.participant.id for p in self.simulator.participants)
-            self.states["in_extra"] = any(p.id == self.participant.id for p in self.simulator.extra_participants)
-            
-            # Выбираем возможное действие на основе текущего состояния
-            possible_actions = []
-            
-            if not self.states["in_main"] and not self.states["in_extra"]:
-                possible_actions.extend([Action.JOIN, Action.JOIN_EXTRA, Action.WAIT])
-            elif self.states["in_main"]:
-                possible_actions.extend([Action.LEAVE, Action.JOIN_EXTRA, Action.WAIT])
-            elif self.states["in_extra"]:
-                possible_actions.extend([Action.LEAVE, Action.JOIN, Action.WAIT])
-            
-            # Добавляем больше шансов на ожидание, чтобы не было слишком частых действий
-            for _ in range(5):
-                possible_actions.append(Action.WAIT)
-            
-            # Выбираем случайное действие
-            action = random.choice(possible_actions)
-            result = ""
-            
-            if action == Action.JOIN:
-                result = self.simulator.join(self.participant)
-                log_msg = f"Пытается присоединиться: {result}"
-            elif action == Action.JOIN_EXTRA:
-                result = self.simulator.join_extra(self.participant)
-                log_msg = f"Пытается войти в доп. список: {result}"
-            elif action == Action.LEAVE:
-                result = self.simulator.leave(self.participant)
-                log_msg = f"Пытается выйти: {result}"
-            else:  # WAIT
-                log_msg = "Ожидает..."
-            
-            # Добавляем действие в логи
-            timestamp = time.strftime("%H:%M:%S")
-            log_entry = f"[{timestamp}] {log_msg}"
-            
-            self.actions_log.append(log_entry)
-            if action != Action.WAIT:
-                self.simulator.main_logs.append(f"[{timestamp}] {self.participant.name}: {log_msg}")
-            
-            # Случайная задержка между действиями (от 2 до 5 секунд)
-            time.sleep(random.uniform(2, 5))
-
 def main():
     # Получаем количество слотов
     slots_window = tk.Tk()
@@ -377,14 +428,10 @@ def main():
                 # Создаем симулятор
                 simulator = CaptSimulator(slots)
                 
-                # Генерируем участников
-                participant1 = simulator.generate_random_participant()
-                participant2 = simulator.generate_random_participant()
-                
                 # Создаем окна
                 main_window = MainWindow(simulator)
-                p1_window = ParticipantWindow(simulator, participant1, "Участник 1")
-                p2_window = ParticipantWindow(simulator, participant2, "Участник 2")
+                p1_window = ParticipantControlWindow(simulator, "Управление участником 1")
+                p2_window = ParticipantControlWindow(simulator, "Управление участником 2")
                 
                 # Запускаем главное окно
                 main_window.mainloop()
