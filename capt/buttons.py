@@ -1,8 +1,9 @@
 import discord
 from tools.logger import Logger
 from tools.embed import EmbedBuilder
-from capt.ranks import get_user_rank, get_lowest_rank_user, sort_participants_by_rank, can_manage_capt, get_highest_rank_from_extra
+from capt.ranks import get_user_rank, get_lowest_rank_user, sort_participants_by_rank, can_manage_capt
 from database.capt import get_instance as get_capt_db
+from tools.message_sender import MessageSender
 
 logger = Logger.get_instance()
 
@@ -46,6 +47,13 @@ class JoinButton(discord.ui.Button):
                 # Сортируем участников по рангу
                 capt_data['participants'] = sort_participants_by_rank(capt_data['participants'])
 
+                # Отправляем сообщение в тред
+                message_id = str(interaction.message.id)
+                if was_moved_from_extra:
+                    await MessageSender.send_thread_message(interaction, capt_data, f"{interaction.user.mention} перемещен из дополнительного списка в основной список.")
+                else:
+                    await MessageSender.send_thread_message(interaction, capt_data, f"{interaction.user.mention} присоединился к основному списку сбора.")
+
                 if was_moved_from_extra:
                     await interaction.response.send_message(f"Вы были перемещены из дополнительного списка в основной список", ephemeral=True)
                 else:
@@ -67,6 +75,9 @@ class JoinButton(discord.ui.Button):
                     # Сортируем участников по рангу
                     capt_data['participants'] = sort_participants_by_rank(capt_data['participants'])
 
+                    # Отправляем сообщение в тред
+                    await MessageSender.send_thread_message(interaction, capt_data, f"{interaction.user.mention} добавлен в основной список, {lowest_rank_user.mention} перемещен в дополнительный список.")
+
                     await interaction.response.send_message(
                         f"Вы добавлены в основной список, участник с более низким рангом перемещен в дополнительный список",
                         ephemeral=True
@@ -74,6 +85,12 @@ class JoinButton(discord.ui.Button):
                 else:
                     # Добавляем в дополнительный список, если ранг ниже минимального
                     capt_data['extra_participants'].append(interaction.user)
+                    # Сортируем дополнительный список по рангу
+                    capt_data['extra_participants'] = sort_participants_by_rank(capt_data['extra_participants'])
+                    
+                    # Отправляем сообщение в тред
+                    await MessageSender.send_thread_message(interaction, capt_data, f"{interaction.user.mention} добавлен в дополнительный список сбора.")
+                    
                     await interaction.response.send_message(f"Вы добавлены в дополнительный список сбора '{capt_data['name']}'", ephemeral=True)
 
             # Обновляем эмбед
@@ -138,29 +155,24 @@ class JoinExtraButton(discord.ui.Button):
             # Добавляем пользователя в дополнительный список
             capt_data['extra_participants'].append(interaction.user)
 
+            # Сортируем дополнительный список по рангу
+            capt_data['extra_participants'] = sort_participants_by_rank(capt_data['extra_participants'])
+
+            # Отправляем сообщение в тред
+            message_id = str(interaction.message.id)
+            if was_in_main_list:
+                await MessageSender.send_thread_message(interaction, capt_data, f"{interaction.user.mention} перемещен из основного списка в дополнительный список.")
+            else:
+                await MessageSender.send_thread_message(interaction, capt_data, f"{interaction.user.mention} присоединился к дополнительному списку сбора.")
+
             if was_in_main_list:
                 await interaction.response.send_message(f"Вы были перемещены из основного списка в дополнительный список", ephemeral=True)
-
-                # Если есть люди в доп. списке, перемещаем лучшего в основной
-                if len(capt_data['participants']) < capt_data['slots'] and len(capt_data['extra_participants']) > 1:
-                    # Получаем участника с наивысшим рангом, исключая текущего пользователя
-                    best_extra = get_highest_rank_from_extra(capt_data['extra_participants'], user_id)
-                    
-                    if best_extra:
-                        # Перемещаем его в основной список
-                        capt_data['extra_participants'].remove(best_extra)
-                        capt_data['participants'].append(best_extra)
-
-                        # Сортируем основной список
-                        capt_data['participants'] = sort_participants_by_rank(capt_data['participants'])
             else:
                 await interaction.response.send_message(f"Вы добавлены в дополнительный список сбора '{capt_data['name']}'", ephemeral=True)
 
             # Обновляем эмбед
             embed = EmbedBuilder.create_capt_embed(capt_data)
             await interaction.message.edit(embed=embed)
-
-            message_id = str(interaction.message.id)
 
             try:
                 # Обновление напрямую из кнопки
@@ -212,6 +224,10 @@ class LeaveButton(discord.ui.Button):
 
             if removed_from_main:
                 await interaction.response.send_message(f"Вы покинули основной список сбора.", ephemeral=True)
+                
+                # Отправляем сообщение в тред
+                await MessageSender.send_thread_message(interaction, capt_data, f"{interaction.user.mention} покинул основной список сбора.")
+
             else:
                 # Ищем в дополнительном списке
                 removed_from_extra = False
@@ -223,6 +239,9 @@ class LeaveButton(discord.ui.Button):
 
                 if removed_from_extra:
                     await interaction.response.send_message(f"Вы покинули дополнительный список сбора.", ephemeral=True)
+                    
+                    # Отправляем сообщение в тред
+                    await MessageSender.send_thread_message(interaction, capt_data, f"{interaction.user.mention} покинул дополнительный список сбора.")
                 else:
                     await interaction.response.send_message(f"Вы не найдены в списках участников.", ephemeral=True)
                     return
@@ -278,6 +297,9 @@ class CloseButton(discord.ui.Button):
             # Деактивируем все кнопки
             for child in view.children:
                 child.disabled = True
+
+            # Отправляем сообщение в тред о закрытии сбора
+            await MessageSender.send_thread_message(interaction, capt_data, f"**Сбор закрыт** пользователем {interaction.user.mention}.")
 
             # Обновляем сообщение с деактивированными кнопками
             await interaction.response.edit_message(view=view)

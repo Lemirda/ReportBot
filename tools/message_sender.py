@@ -31,6 +31,35 @@ class MessageSender:
             logger.error(f"Ошибка при отправке эмбеда: {e}", exc_info=True)
             return None
 
+    @staticmethod
+    async def send_thread_message(interaction, capt_data, message):
+        """
+        Отправляет сообщение в тред сбора. Если треда нет или он недоступен, не делает ничего.
+        
+        Args:
+            interaction: Объект взаимодействия Discord или None
+            capt_data: Данные о сборе
+            message: Текст сообщения для отправки
+        """
+        if 'thread_id' in capt_data and capt_data['thread_id']:
+            try:
+                # Для автоматического закрытия взаимодействие может быть None
+                if interaction is None:
+                    # В этом случае нам нужен объект бота, но мы не можем его получить напрямую
+                    # Логируем ошибку и выходим, в реальном вызове из CaptCommand бот доступен
+                    logger.warning(f"Не удалось отправить сообщение в тред: объект interaction не предоставлен")
+                    return
+                else:
+                    # Пытаемся получить тред
+                    thread = interaction.channel.get_thread(capt_data['thread_id'])
+                    if thread:
+                        await thread.send(message)
+                        return
+                
+                logger.warning(f"Тред {capt_data['thread_id']} не найден для сбора {capt_data.get('name', 'Без имени')}")
+            except Exception as e:
+                logger.error(f"Ошибка при отправке сообщения в тред: {e}", exc_info=True)
+
     async def send_report_embed(self, channel: discord.abc.Messageable):
         """Отправляет эмбед с кнопками обратной связи"""
         # Сначала очищаем канал, если это текстовый канал

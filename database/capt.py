@@ -41,6 +41,7 @@ class CaptDatabase:
                     slots INTEGER NOT NULL,
                     guild_id TEXT NOT NULL,
                     channel_id TEXT NOT NULL,
+                    thread_id TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
@@ -73,7 +74,7 @@ class CaptDatabase:
                 # Обновляем существующий сбор
                 self.cursor.execute('''
                     UPDATE capts 
-                    SET name = ?, creator_id = ?, creator_name = ?, datetime = ?, slots = ?
+                    SET name = ?, creator_id = ?, creator_name = ?, datetime = ?, slots = ?, thread_id = ?
                     WHERE message_id = ?
                 ''', (
                     capt_data['name'],
@@ -81,13 +82,14 @@ class CaptDatabase:
                     capt_data['creator'].display_name,
                     capt_data['datetime'],
                     capt_data['slots'],
+                    str(capt_data.get('thread_id', '')),
                     message_id
                 ))
             else:
                 # Создаем новый сбор
                 self.cursor.execute('''
-                    INSERT INTO capts (message_id, name, creator_id, creator_name, datetime, slots, guild_id, channel_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO capts (message_id, name, creator_id, creator_name, datetime, slots, guild_id, channel_id, thread_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     message_id,
                     capt_data['name'],
@@ -96,7 +98,8 @@ class CaptDatabase:
                     capt_data['datetime'],
                     capt_data['slots'],
                     str(capt_data['guild_id']),
-                    str(capt_data['channel_id'])
+                    str(capt_data['channel_id']),
+                    str(capt_data.get('thread_id', ''))
                 ))
             
             # Удаляем старых участников
@@ -136,7 +139,7 @@ class CaptDatabase:
         try:
             # Получаем основные данные
             self.cursor.execute('''
-                SELECT message_id, name, creator_id, creator_name, datetime, slots, guild_id, channel_id
+                SELECT message_id, name, creator_id, creator_name, datetime, slots, guild_id, channel_id, thread_id
                 FROM capts WHERE message_id = ?
             ''', (message_id,))
             
@@ -156,6 +159,7 @@ class CaptDatabase:
                 "slots": capt_row[5],
                 "guild_id": capt_row[6],
                 "channel_id": capt_row[7],
+                "thread_id": capt_row[8] if capt_row[8] else None,
                 "participants": [],
                 "extra_participants": []
             }

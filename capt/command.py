@@ -3,14 +3,14 @@ from discord.ext import commands
 from discord import app_commands
 from datetime import datetime as dt
 import re
-import os
-import asyncio
 
 from tools.logger import Logger
 from tools.embed import EmbedBuilder
 from capt.view import CaptView
 from database.capt import get_instance as get_capt_db
-from capt.ranks import RAVE_ROLE_ID, can_manage_capt
+from capt.ranks import RAVE_ROLE_ID, can_manage_capt, sort_participants_by_rank
+from tools.message_sender import MessageSender
+from capt.scheduler import CaptScheduler
 
 logger = Logger.get_instance()
 
@@ -22,6 +22,12 @@ class CaptCommand(commands.Cog):
         self.capt_db = get_capt_db()
         # Словарь для хранения данных сборов в памяти (ключ - ID сообщения)
         self.active_capts = {}
+        # Создаем планировщик для автоматического закрытия просроченных сборов
+        self.scheduler = CaptScheduler(bot, self.capt_db)
+        
+    def cog_unload(self):
+        # Останавливаем фоновую задачу в планировщике
+        self.scheduler.cog_unload()
         
     @app_commands.command(name="capt", description="Создать сбор игроков")
     @app_commands.describe(
@@ -117,6 +123,9 @@ class CaptCommand(commands.Cog):
             sent_message = await interaction.original_response()
             message_id = str(sent_message.id)
             
+            # Создаем тред для логов присоединения/выхода участников
+            thread = await sent_message.create_thread(name=f"Логи сбора: {name}",)
+
             # Обновляем ID кнопок, чтобы они включали ID сообщения
             view.update_button_ids(message_id)
             await sent_message.edit(view=view)
@@ -124,11 +133,17 @@ class CaptCommand(commands.Cog):
             # Сохраняем view в боте для персистентности
             self.bot.add_view(view)
             
+            # Добавляем thread_id в данные капта
+            capt_data['thread_id'] = thread.id
+            
             # Сохраняем данные сбора в словаре для быстрого доступа в памяти
             self.active_capts[message_id] = capt_data
             
             # Сохраняем данные в базу данных
             self.capt_db.save_capt(message_id, capt_data)
+            
+            # Обновляем данные в планировщике
+            self.scheduler.set_active_capts(self.active_capts)
             
             logger.info(f"Пользователь {interaction.user.name} создал сбор '{name}' на {date_time} с {slots} слотами. ID сообщения: {message_id}")
             
@@ -190,6 +205,10 @@ class CaptCommand(commands.Cog):
                         'channel_id': capt_info["channel_id"]
                     }
                     
+                    # Добавляем thread_id, если он существует в сохраненных данных
+                    if "thread_id" in capt_info:
+                        capt_data['thread_id'] = capt_info["thread_id"]
+                    
                     # Восстанавливаем списки участников
                     for participant_info in capt_info["participants"]:
                         user = guild.get_member(int(participant_info["id"]))
@@ -211,6 +230,9 @@ class CaptCommand(commands.Cog):
                     # Сохраняем в нашем словаре
                     self.active_capts[message_id] = capt_data
                     
+                    # Обновляем данные в планировщике
+                    self.scheduler.set_active_capts(self.active_capts)
+                    
                     logger.info(f"Восстановлен сбор '{capt_info['name']}' в канале {channel.name}")
                 
                 except Exception as capt_error:
@@ -227,6 +249,8 @@ class CaptCommand(commands.Cog):
         if message_id in self.active_capts:
             self.active_capts[message_id] = capt_data
             self.capt_db.save_capt(message_id, capt_data)
+            # Обновляем данные в планировщике
+            self.scheduler.set_active_capts(self.active_capts)
     
     # Метод для удаления сбора
     def remove_capt(self, message_id):
@@ -234,10 +258,14 @@ class CaptCommand(commands.Cog):
         if message_id in self.active_capts:
             del self.active_capts[message_id]
             self.capt_db.delete_capt(message_id)
+            # Обновляем данные в планировщике
+            self.scheduler.set_active_capts(self.active_capts)
             logger.info(f"Сбор с ID {message_id} удален из активных")
 
 async def setup(bot):
     cog = CaptCommand(bot)
     await bot.add_cog(cog)
     # Запускаем синхронизацию существующих сборов
-    await cog.sync_views() 
+    await cog.sync_views()
+    # Обновляем данные в планировщике
+    cog.scheduler.set_active_capts(cog.active_capts) 
