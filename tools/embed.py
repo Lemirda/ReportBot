@@ -379,13 +379,13 @@ def format_participants_list(participants):
     participants_text = ""
     max_length = 1000  # Ограничение длины текста (Discord максимум 1024, оставляем запас)
     
-    for i, participant in enumerate(participants):
-        # Упрощенное отображение только с упоминанием пользователя
-        mention = f"{participant.mention}\n"
+    for i, participant in enumerate(participants, 1):
+        # Отображение с номером и упоминанием пользователя, но без ранга
+        mention = f"{i}. {participant.mention}\n"
         
         # Проверяем, не превысит ли добавление текущего участника максимальную длину
         if len(participants_text) + len(mention) > max_length - 30:  # Оставляем место для "...и ещё X участников"
-            remaining = len(participants) - i
+            remaining = len(participants) - i + 1
             participants_text += f"...ещё {remaining} участников"
             break
             
