@@ -18,6 +18,7 @@ db_manager = DatabaseManager.get_instance()
 
 REPORT_LOG_CHANNEL=int(os.getenv('REPORT_LOG_CHANNEL'))
 ORDER_LOG_CHANNEL=int(os.getenv('ORDER_LOG_CHANNEL'))
+SUGGESTION_LOG_CHANNEL=int(os.getenv('SUGGESTION_LOG_CHANNEL')) if os.getenv('SUGGESTION_LOG_CHANNEL') else None
 
 def create_reaction_buttons():
     """Создание уникальных ID для кнопок реакции"""
@@ -106,7 +107,7 @@ class RejectReasonModal(discord.ui.Modal, title="Причина отклонен
 
         # Отправляем сообщение в лог-канал, если это жалоба или запрос
         try:
-            if (content_type == "жалоба" or content_type == "предложение") and REPORT_LOG_CHANNEL:
+            if content_type == "жалоба" and REPORT_LOG_CHANNEL:
                 log_channel = interaction.guild.get_channel(REPORT_LOG_CHANNEL)
                 if log_channel:
                     await LogManager.send_decision_log(
@@ -119,6 +120,21 @@ class RejectReasonModal(discord.ui.Modal, title="Причина отклонен
                         reason=self.reason.value,
                         original_embed=self.message.embeds[0] if self.message.embeds else None
                     )
+                    logger.info(f"Отправлен лог об отклонении жалобы от {self.user.name} в канал {log_channel.name}")
+            elif content_type == "предложение" and SUGGESTION_LOG_CHANNEL:
+                log_channel = interaction.guild.get_channel(SUGGESTION_LOG_CHANNEL)
+                if log_channel:
+                    await LogManager.send_decision_log(
+                        channel=log_channel,
+                        content_type=content_type,
+                        status=status,
+                        color=discord.Color.red(),
+                        user=self.user,
+                        moderator=interaction.user,
+                        reason=self.reason.value,
+                        original_embed=self.message.embeds[0] if self.message.embeds else None
+                    )
+                    logger.info(f"Отправлен лог об отклонении предложения от {self.user.name} в канал {log_channel.name}")
             elif content_type == "запрос" and ORDER_LOG_CHANNEL:
                 log_channel = interaction.guild.get_channel(ORDER_LOG_CHANNEL)
                 if log_channel:
@@ -279,8 +295,20 @@ async def handle_approve(bot, interaction, message, user):
 
     # Отправляем сообщение в лог-канал, если это жалоба, запрос или повышение
     try:
-        if (content_type == "жалоба" or content_type == "предложение") and REPORT_LOG_CHANNEL:
+        if content_type == "жалоба" and REPORT_LOG_CHANNEL:
             log_channel = interaction.guild.get_channel(REPORT_LOG_CHANNEL)
+            if log_channel:
+                await LogManager.send_decision_log(
+                    channel=log_channel,
+                    content_type=content_type,
+                    status=status,
+                    color=discord.Color.green(),
+                    user=user,
+                    moderator=interaction.user,
+                    original_embed=message.embeds[0] if message.embeds else None
+                )
+        elif content_type == "предложение" and SUGGESTION_LOG_CHANNEL:
+            log_channel = interaction.guild.get_channel(SUGGESTION_LOG_CHANNEL)
             if log_channel:
                 await LogManager.send_decision_log(
                     channel=log_channel,
