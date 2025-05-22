@@ -106,7 +106,7 @@ class RejectReasonModal(discord.ui.Modal, title="Причина отклонен
 
         # Отправляем сообщение в лог-канал, если это жалоба или запрос
         try:
-            if content_type == "жалоба" and REPORT_LOG_CHANNEL:
+            if (content_type == "жалоба" or content_type == "предложение") and REPORT_LOG_CHANNEL:
                 log_channel = interaction.guild.get_channel(REPORT_LOG_CHANNEL)
                 if log_channel:
                     await LogManager.send_decision_log(
@@ -279,7 +279,7 @@ async def handle_approve(bot, interaction, message, user):
 
     # Отправляем сообщение в лог-канал, если это жалоба, запрос или повышение
     try:
-        if content_type == "жалоба" and REPORT_LOG_CHANNEL:
+        if (content_type == "жалоба" or content_type == "предложение") and REPORT_LOG_CHANNEL:
             log_channel = interaction.guild.get_channel(REPORT_LOG_CHANNEL)
             if log_channel:
                 await LogManager.send_decision_log(
