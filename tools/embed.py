@@ -1,5 +1,5 @@
 import discord
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from tools.order_utils import OrderUtils
 from capt.ranks import get_user_rank_name
 
@@ -397,14 +397,18 @@ def convert_to_unix_timestamp(date_string):
     """Конвертирует строку даты в Unix timestamp для маркеров Discord
     
     Args:
-        date_string: Строка даты и времени (например, "20.05.2023 20:00")
+        date_string: Строка даты и времени в МСК (например, "20.05.2023 20:00")
         
     Returns:
         Unix timestamp в секундах
     """
     try:
-        # Парсим дату из строки
+        # Парсим дату из строки (предполагается, что время в МСК)
         dt = datetime.strptime(date_string, "%d.%m.%Y %H:%M")
+        
+        # Добавляем информацию о часовом поясе (МСК = UTC+3)
+        moscow_tz = timezone(timedelta(hours=3))
+        dt = dt.replace(tzinfo=moscow_tz)
         
         # Преобразуем в Unix timestamp (секунды с 1970-01-01)
         unix_timestamp = int(dt.timestamp())
@@ -412,4 +416,5 @@ def convert_to_unix_timestamp(date_string):
         return unix_timestamp
     except Exception as e:
         # В случае ошибки возвращаем текущее время
-        return int(datetime.now().timestamp()) 
+        current_time = datetime.now(timezone(timedelta(hours=3)))
+        return int(current_time.timestamp()) 

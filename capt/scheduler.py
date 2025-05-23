@@ -1,6 +1,6 @@
 import discord
 from discord.ext import tasks
-from datetime import datetime as dt
+from datetime import datetime as dt, timezone, timedelta
 
 from tools.logger import Logger
 from capt.view import CaptView
@@ -44,14 +44,18 @@ class CaptScheduler:
         if not self.active_capts:
             return
             
-        current_time = dt.now()
+        # Текущее время в МСК
+        current_time = dt.now(timezone(timedelta(hours=3)))
         capts_to_close = []
         
         # Проверяем все активные сборы
         for message_id, capt_data in self.active_capts.items():
             try:
-                # Парсим дату и время сбора
+                # Парсим дату и время сбора (предполагается, что время в МСК)
                 capt_time = dt.strptime(capt_data['datetime'], "%d.%m.%Y %H:%M")
+                # Добавляем информацию о часовом поясе (МСК = UTC+3)
+                moscow_tz = timezone(timedelta(hours=3))
+                capt_time = capt_time.replace(tzinfo=moscow_tz)
                 
                 # Если время сбора прошло, добавляем его в список для закрытия
                 if current_time > capt_time:
