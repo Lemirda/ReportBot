@@ -1,16 +1,9 @@
-# Игнорирование файла конфигураций с секретами
 .env
-
-# Игнорирование БД
 *.db
 database/*.db
 database/reactions.db
-
-# Игнорирование логов
 logs/
 *.log
-
-# Игнорирование кэша Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -31,13 +24,9 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# Игнорирование виртуального окружения
 venv/
 ENV/
 env/
-
-# Игнорирование файлов IDE
 .idea/
 .vscode/
 *.swp

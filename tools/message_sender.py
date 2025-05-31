@@ -2,6 +2,7 @@ import discord
 from tools.logger import Logger
 from tools.view import FeedbackView, OrderView, AfkView, PromotionView
 from tools.embed import EmbedBuilder
+from group.view import GroupView
 
 logger = Logger.get_instance()
 
@@ -103,4 +104,44 @@ class MessageSender:
         embed = EmbedBuilder.create_promotion_button_embed()
 
         view = PromotionView(self.bot)
-        return await self.send_embed(channel, embed, view) 
+        return await self.send_embed(channel, embed, view)
+
+    async def send_group_embed(self, channel: discord.abc.Messageable):
+        """Отправляет эмбед с кнопками для создания групп"""
+        # Проверяем, есть ли уже закрепленные сообщения с кнопками
+        if isinstance(channel, discord.TextChannel):
+            pins = await channel.pins()
+            for pin in pins:
+                if pin.author == self.bot.user and len(pin.components) > 0:
+                    logger.info(f"Сообщение с кнопками для групп уже существует (ID: {pin.id})")
+                    return pin
+        
+        # Создаем эмбед
+        embed = discord.Embed(
+            title="Создание группы",
+            description="Используйте кнопки ниже для создания группы определенного типа.",
+            color=discord.Color.blue()
+        )
+        
+        embed.add_field(
+            name="Инструкция",
+            value="1. Выберите тип группы\n2. Укажите время проведения\n3. Бот отправит 5 сообщений с тегом @Rave",
+            inline=False
+        )
+        
+        # Создаем view с кнопками
+        view = GroupView()
+        
+        # Отправляем сообщение
+        message = await self.send_embed(channel, embed, view)
+        
+        # Закрепляем сообщение
+        if message and isinstance(channel, discord.TextChannel):
+            try:
+                await message.pin()
+                logger.info(f"Сообщение с кнопками для групп создано и закреплено (ID: {message.id})")
+            except discord.HTTPException as e:
+                logger.warning(f"Не удалось закрепить сообщение с кнопками для групп: {e}")
+                logger.info(f"Сообщение с кнопками для групп создано (ID: {message.id}), но не закреплено")
+        
+        return message 

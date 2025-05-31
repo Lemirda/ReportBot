@@ -8,6 +8,8 @@ from tools.message_sender import MessageSender
 from tools.logger import Logger
 from tools.reaction_handlers import handle_reaction_button
 from database.user import UserManager
+from group import GroupManager, handle_group_button
+from database.group import GroupDatabase
 
 logger = Logger.get_instance()
 
@@ -61,16 +63,24 @@ async def on_ready():
                 #logger.info(f"Пользователь: {user_display_name} | Статик: {user_static}")
             #logger.info("=== КОНЕЦ СПИСКА ===")
 
+        # Инициализация менеджеров
+        group_manager = GroupManager.get_instance()
+
+        # Настройка менеджеров с ботом
+        group_manager.setup(bot)
+
         channel_report = bot.get_channel(MAIN_CHANNEL_ID)
         channel_order = bot.get_channel(ORDER_CHANNEL)
         channel_afk = bot.get_channel(AFK_CHANNEL)
         channel_promotion = bot.get_channel(PROMOTION_CHANNEL)
+        channel_group = bot.get_channel(int(os.getenv('GROUP_CHANNEL_ID', 0)))
 
         message_sender = MessageSender(bot)
         await message_sender.send_report_embed(channel_report)
         await message_sender.send_order_embed(channel_order)
         await message_sender.send_afk_embed(channel_afk)
         await message_sender.send_promotion_embed(channel_promotion)
+        await message_sender.send_group_embed(channel_group)
 
     except Exception as e:
         logger.error(f"Ошибка при отправке сообщения: {e}", exc_info=True)
@@ -123,6 +133,9 @@ async def on_interaction(interaction: discord.Interaction):
         try:
             if custom_id.startswith("approve_") or custom_id.startswith("reject_"):
                 await handle_reaction_button(bot, interaction)
+                return
+            elif custom_id.startswith("group_"):
+                await handle_group_button(interaction)
                 return
 
         except Exception as e:
