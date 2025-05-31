@@ -106,27 +106,29 @@ class CustomGroupModal(ui.Modal, title="Создание собственног�
     )
     
     time = ui.TextInput(
-        label="Время (формат: ЧЧ:ММ)",
+        label="Время (формат: ЧЧ:ММ, необязательно)",
         placeholder="Например: 15:30",
-        required=True,
-        min_length=5,
+        required=False,
+        min_length=0,
         max_length=5
     )
     
     async def on_submit(self, interaction: discord.Interaction):
         """Обработка отправки формы"""
         try:
-            # Проверяем формат времени
-            time_str = self.time.value
-            if not re.match(r'^([01]?[0-9]|2[0-3]):([0-5][0-9])$', time_str):
-                await interaction.response.send_message(
-                    "Неверный формат времени. Используйте формат ЧЧ:ММ (например: 15:30)",
-                    ephemeral=True
-                )
-                return
-            
             # Получаем название МП
             mp_name = self.name.value
+            
+            # Проверяем формат времени, если оно указано
+            time_str = ""
+            if self.time.value:
+                if not re.match(r'^([01]?[0-9]|2[0-3]):([0-5][0-9])$', self.time.value):
+                    await interaction.response.send_message(
+                        "Неверный формат времени. Используйте формат ЧЧ:ММ (например: 15:30)",
+                        ephemeral=True
+                    )
+                    return
+                time_str = self.time.value
             
             # Отправляем сообщения в канал
             await interaction.response.defer(ephemeral=True)
@@ -142,7 +144,11 @@ class CustomGroupModal(ui.Modal, title="Создание собственног�
             
             # Создаем 5 сообщений для группы
             for _ in range(5):
-                message = await interaction.channel.send(f"{role_mention} {mp_name} {time_str}")
+                message_content = f"{role_mention} {mp_name}"
+                if time_str:
+                    message_content += f" {time_str}"
+                    
+                message = await interaction.channel.send(message_content)
                 # Сохраняем сообщение в базу данных
                 db.save_message(
                     group_id=group_id,
@@ -154,8 +160,13 @@ class CustomGroupModal(ui.Modal, title="Создание собственног�
                 )
             
             # Отправляем подтверждение пользователю
+            confirmation_message = f"Мероприятие '{mp_name}'"
+            if time_str:
+                confirmation_message += f" на {time_str}"
+            confirmation_message += " успешно создано! Сообщения будут автоматически удалены через 5 минут."
+            
             await interaction.followup.send(
-                f"Мероприятие '{mp_name}' на {time_str} успешно создано! Сообщения будут автоматически удалены через 5 минут.",
+                confirmation_message,
                 ephemeral=True
             )
             
@@ -165,10 +176,13 @@ class CustomGroupModal(ui.Modal, title="Создание собственног�
             await group_manager.log_group_creation(
                 interaction.user,
                 mp_name,
-                time_str
+                time_str if time_str else "без времени"
             )
             
-            logger.info(f"Пользователь {interaction.user.display_name} создал мероприятие '{mp_name}' на {time_str}")
+            log_message = f"Пользователь {interaction.user.display_name} создал мероприятие '{mp_name}'"
+            if time_str:
+                log_message += f" на {time_str}"
+            logger.info(log_message)
             
         except Exception as e:
             logger.error(f"Ошибка при создании мероприятия: {e}", exc_info=True)
